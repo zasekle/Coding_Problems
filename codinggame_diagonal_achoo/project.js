@@ -66,7 +66,7 @@ for (let i = 0; i < g; i++) {
     }
 }
 
-// Write an answer using console.log()
+// Write an answer using console.log() 
 // To debug: console.error('Debug messages...');
 
 console.log(final_index);
