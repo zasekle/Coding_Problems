@@ -1,75 +1,69 @@
 const n = parseInt(readline());
 const g = parseInt(readline());
-let final_index = 0;
-let final_num_infected = 0;
-let final_grid = [];
+
+const DIRS = [
+    [-1, -1], //top-left
+    [-1, +1], //top-right
+    [+1, -1], //bottom-left
+    [+1, +1], //bottom-right
+];
+
+function convertInfected(myGrid) {
+    let infected = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            if (myGrid[i][j] === 'C') {
+                infected.push([i, j]);
+            }
+        }
+    }
+
+    let numberInfected = infected.length;
+    while (infected.length) {
+        const [hRow, hCol] = infected.shift();
+        for (const [i, j] of DIRS) {
+            let row = hRow + i;
+            let col = hCol + j;
+            if(myGrid[row]?.[col] === '.') {
+                myGrid[row][col] = 'C';
+                numberInfected++;
+                infected.push([row, col]);
+            }
+        }
+    }
+
+    return numberInfected;
+}
+
+
+//People that write JavaScript use camel case :(.
+let finalIndex = 0;
+let finalNumInfected = 0;
+let finalGrid = [];
 for (let i = 0; i < g; i++) {
     // Will make this a 2d array of chars.
-    let my_grid = [];
-    let number_infected = 0;
+    let myGrid = [];
     for (let j = 0; j < n; j++) {
         // javascript stores things as strings. These strings are immutable.
         // This means that in a problem like this where I need to modify them,
         // problems can occur. I can use the split() function to instead turn
         // the string into an array of chars.
-        my_grid[j] = readline().split("");
-
-        for (let k = 0; k < n; k++) {
-            if (my_grid[j][k] === 'C') {
-                number_infected++;
-            }
-        }
+        myGrid[j] = readline().split("");
     }
 
-    let grid_change = true;
-    while (grid_change) {
-        grid_change = false;
-        for (let j = 0; j < n; j++) {
-            for (let k = 0; k < n; k++) {
-                if(my_grid[j][k] == 'C') {
-                    //top-left
-                    if (my_grid[j-1]?.[k-1] === '.') {
-                        my_grid[j-1][k-1] = 'C';
-                        grid_change = true;
-                        number_infected++;
-                    }
-                    //top-right
-                    if (my_grid[j-1]?.[k+1] === '.') {
-                        my_grid[j-1][k+1] = 'C';
-                        grid_change = true;
-                        number_infected++;
-                    }
-                    //bottom-left
-                    if (my_grid[j+1]?.[k-1] === '.') {
-                        my_grid[j+1][k-1] = 'C';
-                        grid_change = true;
-                        number_infected++;
-                    }
-                    //bottom-right
-                    if (my_grid[j+1]?.[k+1] === '.') {
-                        my_grid[j+1][k+1] = 'C';
-                        grid_change = true;
-                        number_infected++;
-                    }
-                }
-            }
-        }
-    }
+    let numberInfected = convertInfected(myGrid);
 
-    if (i === 0 || final_num_infected < number_infected) {
-        final_num_infected = number_infected;
-        final_index = i;
-        
-        for (let j = 0; j < n; j++) {
-            final_grid[j] = my_grid[j];
-        }
+    if (i === 0 || finalNumInfected < numberInfected) {
+        finalNumInfected = numberInfected;
+        finalIndex = i;
+        finalGrid = myGrid;
     }
 }
 
-// Write an answer using console.log() 
+// Write an answer using console.log()
 // To debug: console.error('Debug messages...');
 
-console.log(final_index);
+console.log(finalIndex);
 for (let i = 0; i < n; i++) {
-    console.log(final_grid[i].join(""));
+    console.log(finalGrid[i].join(""));
 }
