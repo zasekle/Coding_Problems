@@ -4,6 +4,8 @@
 
 const actorName = readline();
 const n = parseInt(readline());
+
+// Map<string, [string]>
 const castMap = new Map();
 const kevinBacon = "Kevin Bacon";
 for (let i = 0; i < n; i++) {
@@ -25,31 +27,31 @@ for (let i = 0; i < n; i++) {
     }
 }
 
-let currentActors = new Set(castMap.get(actorName));
-let nextActors = new Set();
+//Set<string>
 const usedActors = new Set([actorName]);
-let baconFound = actorName === kevinBacon;
+const currentActors = castMap.get(actorName);
+let head = 0;
 let baconNumber = 0;
+let baconFound = actorName === kevinBacon;
 
 while (!baconFound) {
     baconNumber++;
 
-    for (const actor of currentActors) {
-        if (actor === kevinBacon) {
+    let levelSize = currentActors.length - head;
+    for (let i = 0; i < levelSize; i++) {
+        if (currentActors[i] === kevinBacon) {
             baconFound = true;
             break;
         } else {
-            const associatedActors = castMap.get(actor);
-            for (const associatedActor of associatedActors) {
-                if (!usedActors.has(associatedActor)) {
-                    nextActors.add(associatedActor);
-                    usedActors.add(associatedActor);
+            const associatedActors = castMap.get(currentActors[i]);
+            for (const associate of associatedActors) {
+                if (!usedActors.has(associate)) {
+                    currentActors.push(associate);
+                    usedActors.add(associate);
                 }
             }
         }
     }
-    currentActors = nextActors;
-    nextActors = new Set();
 }
 
 console.log(baconNumber);
