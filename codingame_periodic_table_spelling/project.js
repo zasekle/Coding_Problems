@@ -11,30 +11,31 @@ const allElements = [
     "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
     "Fl", "Mc", "Lv", "Ts", "Og"];
 
-const elements = new Map(allElements.map(x => [x.toLowerCase(), x]));
+const ele = new Map(allElements.map(x => [x.toLowerCase(), x]));
 
-console.error(ele);
-
-function checkForElements(word, builder, allWords) {
+function checkForElements(word, builder, allCombos) {
+    for (let i = 0; i < 2; i++) {
+        if(word.length > i) {
+            const start = word.substring(0, i+1).toLowerCase();
+            const elem = ele.get(start);
+            if (elem) {
+                builder.push(elem);
+                const new_word = word.slice(i+1);
     
-    if(word.length > 1) {
-        const element = (word[0] + word[1]).toLowerCase();
-        const ele = elements.get(element);
-        if (ele) {
-            nextWord = word.slice(2);
-            builder.push(ele);
-
-            checkForElements(nextWord);
-        } else {
-            // element name did NOT exist, probably return something like null/false saying it failed
+                if (new_word.length === 0) {
+                    allCombos.push(builder.join(""));
+                } else {
+                    checkForElements(new_word, builder, allCombos);
+                }
+                builder.pop();
+            }
         }
     }
-
-    if(word.length === 1) {
-
-    }
-
-    //TODO: word.length === 0
 }
 
-console.log('spellings');
+const builder = [];
+const allCombos = [];
+
+checkForElements(word, builder, allCombos);
+
+allCombos.length === 0 ? console.log("none") : allCombos.map(x => console.log(x));
