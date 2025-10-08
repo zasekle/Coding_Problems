@@ -1,6 +1,6 @@
-const word = readline();
+const word = readline().toLowerCase();
 
-const allElements = [
+const SYMBOLS = [
     "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P",
     "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu",
     "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc",
@@ -11,31 +11,25 @@ const allElements = [
     "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
     "Fl", "Mc", "Lv", "Ts", "Og"];
 
-const ele = new Map(allElements.map(x => [x.toLowerCase(), x]));
+const SYM = new Map(SYMBOLS.map(x => [x.toLowerCase(), x]));
 
-function checkForElements(word, builder, allCombos) {
-    for (let i = 0; i < 2; i++) {
-        if(word.length > i) {
-            const start = word.substring(0, i+1).toLowerCase();
-            const elem = ele.get(start);
-            if (elem) {
-                builder.push(elem);
-                const new_word = word.slice(i+1);
-    
-                if (new_word.length === 0) {
-                    allCombos.push(builder.join(""));
-                } else {
-                    checkForElements(new_word, builder, allCombos);
-                }
-                builder.pop();
-            }
+function checkForElements(word, built, out) {
+    if (!word.length) {
+        out.push(built)
+        return;
+    }
+    for (const len of [1, 2]) {
+        if (word.length < len) continue;
+        const part = word.slice(0, len);
+        const sym = SYM.get(part);
+        if (sym) {
+            checkForElements(word.slice(len), built + sym, out);
         }
     }
 }
 
-const builder = [];
-const allCombos = [];
+const results = [];
 
-checkForElements(word, builder, allCombos);
+checkForElements(word, "", results);
 
-allCombos.length === 0 ? console.log("none") : allCombos.map(x => console.log(x));
+results.length === 0 ? console.log("none") : results.map(x => console.log(x));
