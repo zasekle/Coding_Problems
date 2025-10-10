@@ -1,4 +1,3 @@
-
 const n = parseInt(readline());
 const grid = [];
 for (let i = 0; i < n; i++) {
@@ -21,16 +20,13 @@ function isInBounds(i, j) {
 }
 
 const finalPath = [];
-const DIRS = [[-1, -1], [0, -1], [+1, -1], [+1, 0], [+1, +1], [0, +1], [-1, +1], [-1, 0]];
+const DIRS = [[0, -1], [+1, 0], [0, +1], [-1, 0]];
+let number = 0;
 
 while(true) {
-    const currIdx = allLocs.length - 1;
-    console.error(currIdx);
-    console.error(allLocs);
-    console.error(finalPath.length);
-    console.error(finalPath);
-    const curI = allLocs[currIdx][0];
-    const curJ = allLocs[currIdx][1];
+    let currIdx = allLocs.length - 1;
+    let curI = allLocs[currIdx][0];
+    let curJ = allLocs[currIdx][1];
     finalPath.push(allLocs.pop());
 
     if (alphabet.length === finalPath.length) {
@@ -49,8 +45,21 @@ while(true) {
     }
 
     if (!nextFound) {
+        const prevI = allLocs[currIdx-1][0];
+        const prevJ = allLocs[currIdx-1][1];
+        for (let i = finalPath.length-1; finalPath.length > 0; i--) {
+            let finI = finalPath[i][0];
+            let finJ = finalPath[i][1];
+            if(grid[prevI][prevJ] !== grid[finI][finJ]) {
+                finalPath.pop();
+            } else {
+                break;
+            }
+        }
         finalPath.pop();
     }
+
+    number++;
 }
 
 const finalGrid = Array.from({length: n}, () => Array(n).fill('-'));
