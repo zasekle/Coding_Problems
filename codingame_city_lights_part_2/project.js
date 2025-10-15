@@ -3,35 +3,20 @@ const w = parseInt(readline());
 const d = parseInt(readline());
 const n = parseInt(readline());
 
-const grid = [];
-const lights = [];
-for (let i = 0; i < d; i++) {
-    const twoDGrid = [];
-    for (let j = 0; j < w; j++) {
-        const line = readline();
+const MAX_LIGHT = 35;
+const MIN_LIGHT = 10;
 
-        for (let k = 0; k < l; k++) {
-            if(line[k] != '.') {
-                lights.push([i, j, k]);
-            }
-        }
+const CODE_A = 'A'.charCodeAt(0);
 
-        twoDGrid.push(line);
-    }
-    // get rid of blank line
-    readline();
-    grid.push(twoDGrid);
-}
+const distance = (i1, j1, k1, i2, j2, k2) => Math.hypot(i1 - i2, j1 - j2, k1 - k2);
 
-const distance = (i1, j1, k1, i2, j2, k2) => Math.sqrt((i1 - i2)**2 + (j1 - j2)**2 + (k1 - k2)**2);
-
-const clamp = (n) => Math.min(35, Math.max(10, n));
+const clamp = (n, lo = MIN_LIGHT, hi = MAX_LIGHT) => Math.min(hi, Math.max(lo, n));
 
 function charToLight(c) {
     if (c >= '0' && c <= '9') {
         return Number(c);
     } else {
-        return clamp(10 + c.charCodeAt(0) - 'A'.charCodeAt(0));
+        return clamp(10 + c.charCodeAt(0) - CODE_A);
     }
 }
 
@@ -39,26 +24,42 @@ function lightToChar(l) {
     if (l >= 0 && l <= 9) {
         return l.toString();
     } else {
-        return String.fromCharCode(clamp(l) - 10 + 'A'.charCodeAt(0));
+        return String.fromCharCode(clamp(l) - 10 + CODE_A);
     }
 }
 
+const lights = [];
+const grid = Array.from({length: d}, (_, i) => {
+    const plane = Array.from({length: w}, (_, j) => {
+        const line = readline();
+        for (let k = 0; k < l; k++) {
+            if(line[k] != '.') lights.push({i, j, k, bright: charToLight(line[k])});
+        }
+        return line;
+    });
+    // get rid of blank line
+    readline();
+    return plane;
+});
+
 const brightGrid = Array.from({length: d}, () => Array.from({length: w}, () => Array(l).fill(0)));
 
-for (const [lightI, lightJ, lightK] of lights) {
-    const brightness = charToLight(grid[lightI][lightJ][lightK]);
+for (const {i: li, j: lj, k: lk, bright: brightness} of lights) {
     for (let i = 0; i < d; i++) {
         for (let j = 0; j < w; j++) {
             for (let k = 0; k < l; k++) {
-                brightGrid[i][j][k] += Math.max(0, brightness - Math.round(distance(i, j, k, lightI, lightJ, lightK)));
+                const falloff = Math.round(distance(i, j, k, li, lj, lk));
+                const contrib = Math.max(0, brightness - falloff);
+                brightGrid[i][j][k] += contrib;
             }
         }
     }
 }
 
 for (let i = 0; i < d; i++) {
-    if (i !== 0) {
-        console.log("");
+    if (i !== 0) console.log("");
+    for (let j = 0; j < w; j++) {
+        const line = brightGrid[i][j].map(y => lightToChar(y)).join("");
+        console.log(line);
     }
-    brightGrid[i].forEach(x => console.log(x.map(y => lightToChar(y)).join("")));
 }
