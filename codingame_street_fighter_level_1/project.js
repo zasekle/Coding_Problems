@@ -1,146 +1,120 @@
-const NAME = "N";
-const LIFE = "L";
-const PUNCH = "P";
-const KICK = "K";
-const RAGE = "R";
-const HITS = "H";
-
-const char_sheet = {
-    "KEN": {
-        LIFE: 25,
-        PUNCH: 6,
-        KICK: 5,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) { 
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            return 3*rage;
-        },
-    },
-    "RYU": {
-        LIFE: 25,
-        PUNCH: 4,
-        KICK: 5,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            return 4*rage;
+const TEMPLATES = {
+    KEN: {
+        baseLife: 25,
+        punch: 6,
+        kick: 5,
+        special(def) {
+            const r = this.rage;
+            this.rage = 0;
+            return 3*r;
         }
     },
-    "TANK": {
-        LIFE: 50,
-        PUNCH: 2,
-        KICK: 2,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            return 2*rage;
-        } 
-    },
-    "VLAD": {
-        LIFE: 30,
-        PUNCH: 3,
-        KICK: 3,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            const oppRage = defender.RAGE;
-            this.RAGE = 0;
-            defender.RAGE = 0;
-            return 2*(rage+oppRage);
-        } 
-    },
-    "JADE": {
-        LIFE: 20,
-        PUNCH: 2,
-        KICK: 7,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            return rage*this.HITS;
-        } 
-    },
-    "ANNA": {
-        LIFE: 18,
-        PUNCH: 9,
-        KICK: 1,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            return (18-this.LIFE)*rage;
+    RYU: {
+        baseLife: 25,
+        punch: 4,
+        kick: 5,
+        special(def) {
+            const r = this.rage;
+            this.rage = 0;
+            return 4*r;
         }
     },
-    "JUN": {
-        LIFE: 60,
-        PUNCH: 2,
-        KICK: 1,
-        RAGE: 0,
-        HITS: 0,
-        SPECIAL(defender) {
-            const rage = this.RAGE;
-            this.RAGE = 0;
-            this.LIFE += rage;
-            return rage;
+    TANK: {
+        baseLife: 50,
+        punch: 2,
+        kick: 2,
+        special(def) {
+            const r = this.rage;
+            this.rage = 0;
+            return 2*r;
+        } 
+    },
+    VLAD: {
+        baseLife: 30,
+        punch: 3,
+        kick: 3,
+        special(def) {
+            const r = this.rage;
+            const oppRage = def.rage;
+            this.rage = 0;
+            def.rage = 0;
+            return 2*(r+oppRage);
+        } 
+    },
+    JADE: {
+        baseLife: 20,
+        punch: 2,
+        kick: 7,
+        special(def) {
+            const r = this.rage;
+            this.rage = 0;
+            return r*this.hits;
+        } 
+    },
+    ANNA: {
+        baseLife: 18,
+        punch: 9,
+        kick: 1,
+        special(def) {
+            const r = this.rage;
+            this.rage = 0;
+            return (this.baseLife-this.life)*r;
         }
     },
-};
-
-const fighters = readline().split(' ');
-const champ1 = fighters[0];
-const champ2 = fighters[1];
-const N = parseInt(readline());
-
-let winner = "";
-let loser = "";
-for (let i = 0; i < N; i++) {
-    const inputs = readline().split(' ');
-    const d = inputs[0];
-    const ATTACK = inputs[1];
-
-    let attacker;
-    let defender;
-    if (d == '>') {
-        attacker = char_sheet[champ1];;
-        defender = char_sheet[champ2];
-    } else {
-        attacker = char_sheet[champ2];
-        defender = char_sheet[champ1];
-    }
-
-    let damage;
-    if(ATTACK === "SPECIAL") {
-        damage = attacker.SPECIAL(defender);
-    } else {
-        damage = attacker[ATTACK];
-    }
-
-    defender.LIFE -= damage;
-    defender.RAGE += 1;
-    attacker.HITS += 1;
-
-    if (defender.LIFE <= 0) {
-        break;
-    }
+    JUN: {
+        baseLife: 60,
+        punch: 2,
+        kick: 1,
+        special(_) {
+            const r = this.rage;
+            this.rage = 0;
+            this.life += r;
+            return r;
+        }
+    },
 }
 
-if (char_sheet[champ1].LIFE > char_sheet[champ2].LIFE) {
-    winner = champ1;
-    loser = champ2;
-    winningHits = char_sheet[champ1].HITS;
-} else {
-    winner = champ2;
-    loser = champ1;
-    winningHits = char_sheet[champ2].HITS;
+function createFighter(name) {
+    const t = TEMPLATES[name];
+    return {
+        name,
+        baseLife: t.baseLife,
+        life: t.baseLife,
+        rage: 0,
+        hits: 0,
+        punch: t.punch,
+        kick: t.kick,
+        special: t.special,
+    };
 }
 
-console.log(`${winner} beats ${loser} in ${winningHits} hits`);
+function applyMove(attacker, defender, move) {
+    const dmg = move === "SPECIAL"
+        ? attacker.special(defender)
+        : attacker[move.toLowerCase()];
+
+    defender.life -= dmg;
+    defender.rage += 1;
+    attacker.hits += 1;
+    return defender.life <= 0;
+}
+
+const [p1Name, p2Name] = readline().trim().split(" ");
+const n = parseInt(readline());
+
+const p1 = createFighter(p1Name);
+const p2 = createFighter(p2Name);
+
+for (let i = 0; i < n; i++) {
+    const [dir, move] = readline().trim().split(" ");
+    const attacker = dir === ">" ? p1 : p2;
+    const defender = dir === ">" ? p2 : p1;
+
+    const ko = applyMove(attacker, defender, move);
+    if (ko) break;
+}
+
+const winner = p1.life > p2.life ? p1 : p2;
+const loser = winner === p1 ? p2 : p1;
+
+console.log(`${winner.name} beats ${loser.name} in ${winner.hits} hits`);
