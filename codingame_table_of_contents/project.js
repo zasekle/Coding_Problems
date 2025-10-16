@@ -1,27 +1,27 @@
 const lengthofline = parseInt(readline());
 const N = parseInt(readline());
-let titleNum = [0];
-const indent = " ".repeat(4);
+
+let counters = [0];
 for (let i = 0; i < N; i++) {
-    const [section, pageNum] = readline().split(" ");
-    let line = "";
+    const [section, page] = readline().split(" ");
 
-    // Find the first char that is not '>'
-    const idx = section.search(/[^>]/);
+    const depth = section.match(/^>*/)[0].length;
 
-    while(titleNum.length < idx+1) {
-        titleNum.push(0);
-    }
+    const title = section.slice(depth);
 
-    while(titleNum.length > idx+1) {
-        titleNum.pop();
-    }
+    counters = counters.slice(0, depth + 1);
 
-    titleNum[titleNum.length-1] += 1;
+    //?? in javascript is called the nullish coalescing operator, if the lhs
+    // returns null or undefined it will use the rhs of the operator, so 
+    // essentially this will add an element to the array if it doesn't have one
+    // here
+    counters[depth] = (counters[depth] ?? 0) + 1;
 
-    line = indent.repeat(idx) + titleNum[titleNum.length-1].toString() + " " + section.slice(idx);
+    const number = counters[depth];
 
-    line += ".".repeat(lengthofline - line.length - pageNum.length) + pageNum;
+    const left = `${" ".repeat(depth * 4)}${number} ${title}`;
+
+    const line = left.padEnd(lengthofline - page.length, ".") + page;
 
     console.log(line);
 }
