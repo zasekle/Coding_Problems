@@ -1,32 +1,27 @@
-const input = readline().split(" ");
-const dir = input[0] === "right" ? ">" : "<";
-const num = Number(input[1]);
-const height = Number(input[2]);
-const stroke = Number(input[3]);
-const spacing = Number(input[4]);
-const indent = Number(input[5]);
+const [dirRaw, numStr, heightStr, strokeStr, spacingStr, indentStr] = readline().split(" ");
+const dir = dirRaw === "right" ? ">" : "<";
+const num = Number(numStr);
+const height = Number(heightStr);
+const stroke = Number(strokeStr);
+const spacing = Number(spacingStr);
+const indent = Number(indentStr);
 
-const longestLine = (num * stroke) + (spacing * (num - 1)) + (indent * Math.floor(height/2))
-let sign = [];
-for (let i = 0; i < height; i++) {
-    let line = [];
-    let curLen = indent * Math.min(i, height - i - 1);
+const widest = num * stroke + spacing * (num - 1) + indent * Math.floor(height/2)
+const block = dir.repeat(stroke);
+const spacer = " ".repeat(spacing);
 
-    line.push(" ".repeat(curLen));
-    for (let j = 0; j < num; j++) {
-        if (j != 0) {
-            curLen += spacing;
-            line.push(" ".repeat(spacing))
-        }
-        curLen += stroke;
-        line.push(dir.repeat(stroke));
-    }
-    line.push(" ".repeat(longestLine - curLen));
-    if (dir === "<") line = line.reverse();
+function makeRow(i) {
+    const leftIndent = indent * Math.min(i, height - i - 1);
+    const arrows = Array.from({ length: num}, () => block).join(spacer);
+    let line = " ".repeat(leftIndent) + arrows;
 
-    sign.push(line.join("").replace(/\s+$/, ""));
+    if (line.length < widest) line = line.padEnd(widest, " ");
+
+    if (dir === "<") line = line.split("").reverse().join("");
+
+    return line.replace(/\s+$/, "");
 }
 
-for(const line of sign) {
-    console.log(line);
+for (let i = 0; i < height; i++) {
+    console.log(makeRow(i));
 }
