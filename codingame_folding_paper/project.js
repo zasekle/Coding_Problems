@@ -1,27 +1,35 @@
 const order = readline();
-const outputSide = readline();
+const out = readline();
 
-const sides = {
-    R: ["L", 1],
-    L: ["R", 1],
-    U: ["D", 1],
-    D: ["U", 1],
+const opp = {
+    R: "L",
+    L: "R",
+    U: "D",
+    D: "U",
 };
 
-for (const letter of order) {
-    const oppChar = sides[letter][0];
+const orth = {
+    R: ["U", "D"],
+    L: ["U", "D"],
+    U: ["L", "R"],
+    D: ["L", "R"],
+};
 
-    // Must be calculated before current side is set to 1.
-    sides[oppChar][1] += sides[letter][1];
-    
-    for (const sidesKey in sides) {
-        if (letter === sidesKey) {
-            sides[sidesKey][1] = 1;
-        } else if (sidesKey != oppChar) {
-            sides[sidesKey][1] *= 2;
-        }
-    }
+const sides = {
+    R: 1,
+    L: 1,
+    U: 1,
+    D: 1,
+};
+
+for (const c of order) {
+    const o = opp[c];
+    const [a, b] = orth[c];
+
+    sides[o] += sides[c];
+    sides[a] *= 2;
+    sides[b] *= 2;
+    sides[c] = 1;
 }
 
-
-console.log(sides[outputSide][1]);
+console.log(sides[out]);
