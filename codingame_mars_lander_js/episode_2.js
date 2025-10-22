@@ -1,8 +1,3 @@
-/**
- * Auto-generated code below aims at helping you parse
- * the standard input according to the problem statement.
- **/
-
 const surfaceN = parseInt(readline()); // the number of points used to draw the surface of Mars.
 const landX = [];
 const landY = [];
@@ -115,8 +110,8 @@ while (true) {
     // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
 
     if (firstPass) {
-        const numRows = 3000/squareSize;
-        const numCols = 7000/squareSize; 
+        const numRows = 3000/squareSize + 1;
+        const numCols = 7000/squareSize + 1; 
 
         const isInGridBounds = (y, x) => y >= 0 && y < numRows && x >= 0 && x < numCols;
 
@@ -164,7 +159,6 @@ while (true) {
         gridStartingPoints.push([gridLanderTopY, gridLanderLeftX]);
         gridStartingPoints.push([gridLanderTopY, gridLanderRightX]);
 
-        //TODO: problem here, these can go back the boundary size too.
         grid[gridLanderBottomY][gridLanderLeftX] += distance(x, y, landerLeftX, landerBottomY);
         grid[gridLanderBottomY][gridLanderRightX] += distance(x, y, landerRightX, landerBottomY);
         grid[gridLanderTopY][gridLanderLeftX] += distance(x, y, landerLeftX, landerTopY);
@@ -243,7 +237,7 @@ while (true) {
         console.error(grid);
 
         //TODO: Is there a better way to do this than finding shortest distance?
-	//TODO: Maybe I just use the shortest path on the first time I go through it. Then every second after that
+    	//TODO: Maybe I just use the shortest path on the first time I go through it. Then every second after that
         // I recalculate it somehow and clean up the path based on new information. This is also a lot more practical
         // for a real world situation than trying to theoretically figure it out to start.
         //TODO: Last time I think I got stuck on the part of following the line with the shuttle well enough. Can I go

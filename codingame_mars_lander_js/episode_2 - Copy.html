@@ -1,0 +1,23 @@
+<table id="grid"></table>
+<script>
+const grid = [
+  [0, 1, 0],
+  [1, 0, 1],
+  [0, 1, 0]
+];
+
+const table = document.getElementById("grid");
+for (const row of grid) {
+  const tr = document.createElement("tr");
+  for (const cell of row) {
+    const td = document.createElement("td");
+    td.textContent = cell;
+    td.style.width = "30px";
+    td.style.height = "30px";
+    td.style.textAlign = "center";
+    td.style.border = "1px solid black";
+    tr.appendChild(td);
+  }
+  table.appendChild(tr);
+}
+</script>
