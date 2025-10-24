@@ -1,0 +1,390 @@
+<!doctype html>
+<html>
+  <body>
+    <!-- fixed-size canvas so we don't worry about resizing -->
+    <canvas id="plot" width="800" height="400" style="border:1px solid #ccc"></canvas>
+
+    <script>
+      //:StartLiveServer
+
+      const surfaceN = 7;
+      const landX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
+      const landY = [100, 500, 1500, 1000, 150, 150, 800];
+
+      console.error(landX);
+      console.error(landY);
+
+      // at least 1000m wide
+      let firstFlatIdx = 0;
+      let secondFlatIdx = 0;
+      for (let i = 1; i < surfaceN; i++) {
+          if (landY[i] === landY[i - 1]) {
+              firstFlatIdx = i - 1;
+              secondFlatIdx = i;
+              break;
+          }
+      };
+
+      const squareSize = 500;
+      let firstPass = true;
+
+      function gridToStandardX(coord) {
+          let conversion = coord * squareSize;
+          if(conversion > 6999) {
+              conversion = 6999;
+          }
+          return coord * squareSize;
+      }
+
+      function gridToStandardY(coord) {
+          let conversion = coord * squareSize;
+          if(conversion > 2999) {
+              conversion = 2999;
+          }
+          return coord * squareSize;
+      }
+
+      function standardToGrid(coord) {
+          return coord/squareSize;
+      }
+
+      function standardToGridCeil(coord, type) {
+          return Math.ceil(coord/squareSize);
+      }
+
+      function standardToGridFloor(coord) {
+          return Math.ceil(coord/squareSize);
+      }
+
+      function segmentsIntersect(A, B, C, D, eps = 1e-10) {
+          const cross = (p, q, r) => 
+              (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+
+          const orient = (p, q, r) => {
+              const val = cross(p, q, r);
+              if (Math.abs(val) < eps) return 0; // collinear
+              return val > 0 ? 1 : -1;
+          }
+
+          const o1 = orient(A, B, C);
+          const o2 = orient(A, B, D);
+          const o3 = orient(C, D, A);
+          const o4 = orient(C, D, B);
+
+          // General case: proper intersection
+          if (o1 !== o2 && o3 !== o4) return true;
+
+          // Collinear special cases
+          const onSeg = (p, q, r) =>
+              Math.min(p.x, r.x) - eps <= q.x && q.x <= Math.max(p.x, r.x) + eps &&
+              Math.min(p.y, r.y) - eps <= q.y && q.y <= Math.max(p.y, r.y) + eps;
+
+          if (o1 === 0 && onSeg(A, C, B)) return true;
+          if (o2 === 0 && onSeg(A, D, B)) return true;
+          if (o3 === 0 && onSeg(C, A, D)) return true;
+          if (o4 === 0 && onSeg(C, B, D)) return true;
+
+          return false;
+      }
+
+      const x = 2500;
+      const y = 2700;
+      const hSpeed = 0;
+      const vSpeed = 0;
+      const fuel = 550;
+      const rotate = 0;
+      const power = 0;
+
+      // Write an action using console.log()
+      // To debug: console.error('Debug messages...');
+
+      // Probably get above the landing area as fast as possible? This could be false later and I would
+      // like to make it extendable. So maybe I need to actually find the shortest path to the surface, then
+      // try to follow it closely. Although I would need to simulate that while the moves are all predictable
+      // it can't follow tight paths. Maybe instead of thinking of it like a programming problem, think of it
+      // like a real problem. That means I want it to work first and foremost, then I want to prio fuel, then
+      // I want to prio computational efficieny.
+
+      // Maybe break it up into a grid and do flow control over it? Then go over the path and see if it is valid & adjust
+      // accordingly. OR I could figure out how tight the lander can corner and use flow control to somehow make the 
+      // correct path the first time by being farther away from the edges.
+
+      const distance = (x1, y1, x2, y2) => Math.hypot((x1 - x2), (y1 - y2));
+
+      // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
+
+      let grid = [];
+
+      if (firstPass) {
+          const numRows = 3000/squareSize + 1;
+          const numCols = 7000/squareSize + 1; 
+
+          const isInGridBounds = (y, x) => y >= 0 && y < numRows && x >= 0 && x < numCols;
+
+          // How does this work?
+          // Start at the current coords. Every direction works, but I want the shortest path. So 
+          // some kind of backtracking algo I suppose? Maybe start at the points on the grid that 
+          // are "solutions" and then use backwards induction to find the shortest path.
+
+          // Multiple possible end points. Pick one and start there.
+
+          // Check each direction and keep track of length. Find shortest direction once I find
+          // the lander.
+
+          // Need coords of the current lander and the coords of the end points. Maybe I will need
+          // to do some extra at the start and end to go to a corner. So from startX and startY to
+          // the nearest coord and such. Oh, I can just add the distance to the nearest coordinates.
+
+          for(let i = 0; i < numRows; i++) {
+              let row = [];
+              for (let j = 0; j < numCols; j++) {
+                  row.push(-1);
+              }
+              grid.push(row);
+          }
+
+          // Conversions between grid coords and X Y input are /squareSize and *squareSize.
+
+          const gridStartingPoints = [];
+          const gridLandingPoints = [];
+
+          const gridLanderLeftX = standardToGridCeil(x);
+          const gridLanderRightX = standardToGridFloor(x);
+          const gridLanderBottomY = standardToGridCeil(y);
+          const gridLanderTopY = standardToGridFloor(y);
+
+          // Convert grid coords back to actual coords.
+          const landerLeftX = gridToStandardX(gridLanderLeftX);
+          const landerRightX = gridToStandardX(gridLanderRightX);
+          const landerBottomY = gridToStandardY(gridLanderBottomY);
+          const landerTopY = gridToStandardY(gridLanderTopY);
+
+          gridStartingPoints.push([gridLanderBottomY, gridLanderLeftX]);
+          gridStartingPoints.push([gridLanderBottomY, gridLanderRightX]);
+          gridStartingPoints.push([gridLanderTopY, gridLanderLeftX]);
+          gridStartingPoints.push([gridLanderTopY, gridLanderRightX]);
+
+          grid[gridLanderBottomY][gridLanderLeftX] += distance(x, y, landerLeftX, landerBottomY);
+          grid[gridLanderBottomY][gridLanderRightX] += distance(x, y, landerRightX, landerBottomY);
+          grid[gridLanderTopY][gridLanderLeftX] += distance(x, y, landerLeftX, landerTopY);
+          grid[gridLanderTopY][gridLanderRightX] += distance(x, y, landerRightX, landerTopY);
+
+          // Mark coords directly above the ground coords.
+          const flatY = landY[firstFlatIdx];
+          const gridFlatY = standardToGridCeil(flatY);
+          const convertFlatY = gridFlatY * squareSize;
+          for(let i = firstFlatIdx; i <= secondFlatIdx; i++) {
+              const flatX = landX[i];
+              const gridFlatX = standardToGridCeil(flatX);
+              const convertFlatX = gridFlatX * squareSize;
+
+              // The last coord could go past the actual landing pad, this will prevent it from being used.
+              if (convertFlatX <= landX[secondFlatIdx]) {
+                  grid[gridFlatY][gridFlatX] += distance(flatX, flatY, convertFlatX, convertFlatY)
+                  gridLandingPoints.push([gridFlatY, gridFlatX]);
+              }
+          }
+
+          const orthogDistance = distance(0, 0, squareSize, 0);
+          const diagonalDistance = distance(0, 0, squareSize, squareSize);
+          const DIRS = [
+              [-1, -1, diagonalDistance],
+              [-1, 0, orthogDistance],
+              [-1, 1, diagonalDistance],
+              [0, -1, orthogDistance],
+              [0, 1, orthogDistance],
+              [1, -1, diagonalDistance],
+              [1, 0, orthogDistance],
+              [1, -1, diagonalDistance]
+          ];
+
+          // Calculate and save the shortest distance from each grid point to the end point. It will
+          // not calculate any point that fall outside the grid and will not move through any land.
+          let headIdx = 0;
+          const nextPoints = [...gridLandingPoints];
+          while (headIdx < nextPoints.length) {
+              const [gridY, gridX] = nextPoints[headIdx];
+              const gridDist = grid[gridY][gridX];
+              const workingY = gridToStandardY(gridY);
+              const workingX = gridToStandardX(gridX);
+              for (const [dy, dx, dist] in DIRS) {
+                  const newGridY = gridY + dy;
+                  const newGridX = gridX + dx;
+      
+                  if (isInGridBounds(newGridY, newGridX)) {
+                      const newY = gridToStandardY(newGridY);
+                      const newX = gridToStandardX(newGridX);
+
+                      let outOfBounds = false;
+                      for (let i = 1; i < surfaceN; i++) {
+                          if (segmentsIntersect(
+                                  {x: workingX, y: workingY},
+                                  {x: newX, y: newY},
+                                  {x: landX[i-1], y: landY[i-1]},
+                                  {x: landX[i], y: landY[i]}
+                          )) {
+                              outOfBounds = true;
+                              break;
+                          }
+                      }
+
+                      const calculatedNextDist = gridDist + dist;
+                      const actualNextDist = grid[newGridY][newGridX]; 
+                      if (!outOfBounds && (actualNextDist === -1 || calculatedNextDist < actualNextDist)) {
+                          grid[newGridY][newGridX] = calculatedNextDist;
+                          nextPoints.push([newGridY, newGridX]);
+                      }
+                  }
+              }
+              headIdx++;
+          }
+
+          console.error(grid);
+
+          //TODO: Is there a better way to do this than finding shortest distance?
+          //TODO: Maybe I just use the shortest path on the first time I go through it. Then every second after that
+          // I recalculate it somehow and clean up the path based on new information. This is also a lot more practical
+          // for a real world situation than trying to theoretically figure it out to start.
+          //TODO: Last time I think I got stuck on the part of following the line with the shuttle well enough. Can I go
+          // backwards and do it better somehow? How do I follow the line though? Or Do I need to remake the line based
+          // on following it? I don't know if forwards or backwards matters. Maybe I just need to remake the line on
+          // every pass or something like that.
+
+          firstPass = false;
+      }
+
+      // rotate power. rotate is the desired rotation angle. power is the desired thrust power.
+      // PROBLEM OUTPUT
+      console.log('-90 3');
+
+      // your data
+      const X = [0, 1000, 1500, 3000, 4000, 5500, 6999];
+      const Y = [100, 500, 1500, 1000, 150, 150, 800];
+
+      // --- data domain ---
+      const XMIN = 0, XMAX = 6999;
+      const YMIN = 0, YMAX = 2999;
+
+      // --- grid cell size (in data units) ---
+      const DX = squareSize;   // width of each cell in x units
+      const DY = squareSize;    // height of each cell in y units
+
+      // --- canvas + context ---
+      const c = document.getElementById('plot');
+      const ctx = c.getContext('2d');
+
+      // --- scale functions: data -> pixels ---
+      const sx = x => (x - XMIN) / (XMAX - XMIN) * c.width;
+      const sy = y => c.height - ((y - YMIN) / (YMAX - YMIN) * c.height); // flip Y so 0 is bottom
+
+      // --- precompute pixel points for the polyline ---
+      const pts = X.map((x, i) => ({ x: sx(x), y: sy(Y[i]) }));
+
+      // --- draw the polyline + points (your existing simple graph) ---
+      function drawGraph() {
+        // background
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, c.width, c.height);
+
+        // line
+        ctx.beginPath();
+        pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.strokeStyle = "#0074D9";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // points
+        ctx.fillStyle = "#FF4136";
+        pts.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // --- label content for each cell ---
+      // Return a string to draw at the cell center.
+      // You can switch what it prints by changing which return is active.
+      function cellLabel(col, row, x0, y0, x1, y1, cols, rows) {
+        // Option A: sequential index starting at bottom-left
+        return String(row * cols + col);
+
+        // Option B: column,row indices
+        // return `${col},${row}`;
+
+        // Option C: data-space center coordinates (rounded)
+        // const xc = Math.round((x0 + x1) / 2);
+        // const yc = Math.round((y0 + y1) / 2);
+        // return `${xc},${yc}`;
+      }
+
+      // --- draw grid lines + labels on TOP of the graph ---
+      function drawGrid() {
+        const cols = Math.ceil((XMAX - XMIN) / DX);
+        const rows = Math.ceil((YMAX - YMIN) / DY);
+
+        // grid lines
+        ctx.strokeStyle = "#cccccc";
+        ctx.lineWidth = 1;
+
+        // verticals
+        for (let i = 0; i <= cols; i++) {
+          const xData = XMIN + i * DX;
+          const xPix = sx(Math.min(xData, XMAX));
+          ctx.beginPath();
+          ctx.moveTo(xPix, sy(YMIN));
+          ctx.lineTo(xPix, sy(YMAX));
+          ctx.stroke();
+        }
+
+        // horizontals
+        for (let j = 0; j <= rows; j++) {
+          const yData = YMIN + j * DY;
+          const yPix = sy(Math.min(yData, YMAX));
+          ctx.beginPath();
+          ctx.moveTo(sx(XMIN), yPix);
+          ctx.lineTo(sx(XMAX), yPix);
+          ctx.stroke();
+        }
+
+        // labels (center of each cell)
+        ctx.fillStyle = "#333333";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        for (let col = 0; col < cols; col++) {
+          for (let row = 0; row < rows; row++) {
+            const x0 = XMIN + col * DX;
+            const x1 = Math.min(x0 + DX, XMAX);
+            const y0 = YMIN + row * DY;
+            const y1 = Math.min(y0 + DY, YMAX);
+
+            const xc = (x0 + x1) / 2;
+            const yc = (y0 + y1) / 2;
+
+            const xp = sx(xc);
+            const yp = sy(yc);
+
+            const text = cellLabel(col, row, x0, y0, x1, y1, cols, rows);
+            ctx.fillText(String(grid[row][col]), xp, yp);
+          }
+        }
+      }
+
+      // --- render ---
+      drawGraph(); // draw your plot first
+      drawGrid();  // then draw the grid + labels over top
+
+      ctx.beginPath();
+      ctx.arc(sx(x), sy(y), 6, 0, Math.PI * 2);
+      ctx.fillStyle = "green";
+      ctx.fill();
+
+      // point label
+      ctx.fillStyle = "black";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("Ship", sx(x) + 10, sy(y) - 10);
+    </script>
+  </body>
+</html>
