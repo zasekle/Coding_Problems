@@ -5,7 +5,7 @@
     <canvas id="plot" width="800" height="400" style="border:1px solid #ccc"></canvas>
 
     <script>
-      //:StartLiveServer
+      //:LiveServerStart
 
       const surfaceN = 7;
       const landX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
@@ -33,7 +33,7 @@
           if(conversion > 6999) {
               conversion = 6999;
           }
-          return coord * squareSize;
+          return conversion;
       }
 
       function gridToStandardY(coord) {
@@ -41,19 +41,19 @@
           if(conversion > 2999) {
               conversion = 2999;
           }
-          return coord * squareSize;
+          return conversion;
       }
 
       function standardToGrid(coord) {
           return coord/squareSize;
       }
 
-      function standardToGridCeil(coord, type) {
+      function standardToGridCeil(coord) {
           return Math.ceil(coord/squareSize);
       }
 
       function standardToGridFloor(coord) {
-          return Math.ceil(coord/squareSize);
+          return Math.floor(coord/squareSize);
       }
 
       function segmentsIntersect(A, B, C, D, eps = 1e-10) {
@@ -113,6 +113,7 @@
 
       // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
 
+      console.error(`ship [${x}, ${y}]`);
       let grid = [];
 
       if (firstPass) {
@@ -135,6 +136,9 @@
           // to do some extra at the start and end to go to a corner. So from startX and startY to
           // the nearest coord and such. Oh, I can just add the distance to the nearest coordinates.
 
+          // The actual coordinate that represents each square is the bottom left.
+          // This allows it to be floor(X) and floor(Y) which makes computation 
+          // simpler.
           for(let i = 0; i < numRows; i++) {
               let row = [];
               for (let j = 0; j < numCols; j++) {
@@ -143,46 +147,25 @@
               grid.push(row);
           }
 
-          // Conversions between grid coords and X Y input are /squareSize and *squareSize.
-
-          const gridStartingPoints = [];
+          // Mark coords directly above the ground coords.
           const gridLandingPoints = [];
 
-          const gridLanderLeftX = standardToGridCeil(x);
-          const gridLanderRightX = standardToGridFloor(x);
-          const gridLanderBottomY = standardToGridCeil(y);
-          const gridLanderTopY = standardToGridFloor(y);
-
-          // Convert grid coords back to actual coords.
-          const landerLeftX = gridToStandardX(gridLanderLeftX);
-          const landerRightX = gridToStandardX(gridLanderRightX);
-          const landerBottomY = gridToStandardY(gridLanderBottomY);
-          const landerTopY = gridToStandardY(gridLanderTopY);
-
-          gridStartingPoints.push([gridLanderBottomY, gridLanderLeftX]);
-          gridStartingPoints.push([gridLanderBottomY, gridLanderRightX]);
-          gridStartingPoints.push([gridLanderTopY, gridLanderLeftX]);
-          gridStartingPoints.push([gridLanderTopY, gridLanderRightX]);
-
-          grid[gridLanderBottomY][gridLanderLeftX] += distance(x, y, landerLeftX, landerBottomY);
-          grid[gridLanderBottomY][gridLanderRightX] += distance(x, y, landerRightX, landerBottomY);
-          grid[gridLanderTopY][gridLanderLeftX] += distance(x, y, landerLeftX, landerTopY);
-          grid[gridLanderTopY][gridLanderRightX] += distance(x, y, landerRightX, landerTopY);
-
-          // Mark coords directly above the ground coords.
           const flatY = landY[firstFlatIdx];
           const gridFlatY = standardToGridCeil(flatY);
-          const convertFlatY = gridFlatY * squareSize;
-          for(let i = firstFlatIdx; i <= secondFlatIdx; i++) {
-              const flatX = landX[i];
-              const gridFlatX = standardToGridCeil(flatX);
-              const convertFlatX = gridFlatX * squareSize;
+          const convertFlatY = gridToStandardY(gridFlatY);
 
-              // The last coord could go past the actual landing pad, this will prevent it from being used.
-              if (convertFlatX <= landX[secondFlatIdx]) {
-                  grid[gridFlatY][gridFlatX] += distance(flatX, flatY, convertFlatX, convertFlatY)
-                  gridLandingPoints.push([gridFlatY, gridFlatX]);
-              }
+          const distanceToSquare = distance(0, flatY, 0, convertFlatY);
+
+          const firstFlatX = landX[firstFlatIdx];
+          const firstGridFlatX = standardToGridCeil(firstFlatX);
+
+          const secondFlatX = landX[secondFlatIdx];
+          const secondGridFlatX = standardToGridFloor(secondFlatX);
+          const convertSecondGridFlatX = gridToStandardX(secondGridFlatX);
+
+          for(let gridFlatX = firstGridFlatX; gridFlatX <= secondGridFlatX; gridFlatX++) {
+            grid[gridFlatY][gridFlatX] = distanceToSquare;
+            gridLandingPoints.push([gridFlatY, gridFlatX]);
           }
 
           const orthogDistance = distance(0, 0, squareSize, 0);
@@ -200,6 +183,7 @@
 
           // Calculate and save the shortest distance from each grid point to the end point. It will
           // not calculate any point that fall outside the grid and will not move through any land.
+
           let headIdx = 0;
           const nextPoints = [...gridLandingPoints];
           while (headIdx < nextPoints.length) {
@@ -207,16 +191,17 @@
               const gridDist = grid[gridY][gridX];
               const workingY = gridToStandardY(gridY);
               const workingX = gridToStandardX(gridX);
-              for (const [dy, dx, dist] in DIRS) {
+              for (const [dy, dx, dist] of DIRS) {
                   const newGridY = gridY + dy;
                   const newGridX = gridX + dx;
-      
+
                   if (isInGridBounds(newGridY, newGridX)) {
                       const newY = gridToStandardY(newGridY);
                       const newX = gridToStandardX(newGridX);
 
                       let outOfBounds = false;
                       for (let i = 1; i < surfaceN; i++) {
+
                           if (segmentsIntersect(
                                   {x: workingX, y: workingY},
                                   {x: newX, y: newY},
@@ -239,7 +224,43 @@
               headIdx++;
           }
 
-          console.error(grid);
+          const gridStartingPoints = [];
+
+          // These points can be duplicates, so doing it this way to avoid
+          // the same point being used multiple times.
+          const gridLanderXCoords = new Set();
+          const gridLanderYCoords = new Set();
+          gridLanderXCoords.add(standardToGridFloor(x));
+          gridLanderXCoords.add(standardToGridCeil(x));
+          gridLanderYCoords.add(standardToGridFloor(y));
+          gridLanderYCoords.add(standardToGridCeil(y));
+
+          for (const gridX of gridLanderXCoords) {
+              for (const gridY of gridLanderYCoords) {
+                  // Convert grid coords back to actual coords.
+                  const landerX = gridToStandardX(gridX);
+                  const landerY = gridToStandardY(gridY);
+
+                  gridStartingPoints.push([gridY, gridX]);
+
+                  // If this point could not be reached by the above algo, there is no
+                  // path to reach the landing pad.
+                  if (grid[gridY][gridX] !== -1) {
+                      grid[gridY][gridX] += distance(x, y, landerX, landerY);
+                  }
+              }
+          }
+
+          //TODO: Need to move the move up a little to give myself some leeway.
+          //TODO: Need to draw a line from the ship to the landing pad.
+          //TODO: Need to follow the line algorithmically.
+          //TODO: How do I guarantee that the hv, vv, rot, etc.. are in bounds? Maybe I do
+          // need more of a simulation for it. Or is there some way to reverse it so that I 
+          // can find the min point that I need to start slowing/rotating.
+          // For example, to slow vertical speed, I need to use the thrusters to go up. But
+          // they don't need to be pointed straight down. I COULD just make the very end
+          // fairly straight. However, this isn't a great solution. I think I should get the
+          // initial part working first.
 
           //TODO: Is there a better way to do this than finding shortest distance?
           //TODO: Maybe I just use the shortest path on the first time I go through it. Then every second after that
@@ -367,7 +388,7 @@
             const yp = sy(yc);
 
             const text = cellLabel(col, row, x0, y0, x1, y1, cols, rows);
-            ctx.fillText(String(grid[row][col]), xp, yp);
+            ctx.fillText(String(grid[row][col].toFixed(0)), xp, yp);
           }
         }
       }
