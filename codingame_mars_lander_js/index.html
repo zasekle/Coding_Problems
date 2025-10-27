@@ -8,17 +8,17 @@
       //:LiveServerStart
 
       const surfaceN = 7;
-      const landX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
-      const landY = [100, 500, 1500, 1000, 150, 150, 800];
+      const landOrigX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
+      const landOrigY = [100, 500, 1500, 1000, 150, 150, 800];
 
-      console.error(landX);
-      console.error(landY);
+      console.error(landOrigX);
+      console.error(landOrigY);
 
       // at least 1000m wide
       let firstFlatIdx = 0;
       let secondFlatIdx = 0;
       for (let i = 1; i < surfaceN; i++) {
-          if (landY[i] === landY[i - 1]) {
+          if (landOrigY[i] === landOrigY[i - 1]) {
               firstFlatIdx = i - 1;
               secondFlatIdx = i;
               break;
@@ -26,6 +26,73 @@
       };
 
       const squareSize = 500;
+      const leewayDist = 150;
+      const landX = [];
+      const landY = [];
+
+      // These are a segment of the y-axis, they are used to prime the formula below.
+      let x1 = 0;
+      let x2 = 0;
+      let y1 = 0;
+      let y2 = 2999;
+
+      function intersect(x3, x4, y3, y4) {
+          // intersection formula
+          const d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+          const newX = ((x1*y2 - y1*x2)*(x3 - x4) - (x1 - x2)*(x3*y4 - y3*x4))/d;
+          const newY = ((x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4))/d;
+
+          return [newX, newY];
+      }
+
+      for (let i = 1; i < surfaceN; i++) {
+
+          let x3 = -1;
+          let x4 = -1;
+          let y3 = -1;
+          let y4 = -1;
+
+          if (i === secondFlatIdx) {
+              x3 = landOrigX[i - 1];
+              x4 = landOrigX[i];
+              y3 = landOrigY[i - 1];
+              y4 = landOrigY[i];
+          } else {
+              const dY = landOrigY[i] - landOrigY[i-1];
+              const dX = landOrigX[i] - landOrigX[i-1];
+
+              const len = Math.hypot(dX, dY);
+
+              if (!len) continue;
+
+              // n = (-Δy, Δx)/sqrt((Δx)^2 + (Δy)^2)
+              // A' = A + h*n
+              // B' = B + h*n
+              const normX = leewayDist * (-dY / len);
+              const normY = leewayDist * (dX / len);
+              
+              x3 = landOrigX[i-1] + normX;
+              x4 = landOrigX[i] + normX;
+              y3 = landOrigY[i-1] + normY;
+              y4 = landOrigY[i] + normY;
+          }
+
+          const [newX, newY] = intersect(x3, x4, y3, y4);
+
+          landX.push(newX);
+          landY.push(newY);
+
+          x1 = x3;
+          x2 = x4;
+          y1 = y3;
+          y2 = y4;
+      };
+
+      const [newX, newY] = intersect(6999, 6999, 0, 2999);
+
+      landX.push(newX);
+      landY.push(newY);
+
       let firstPass = true;
 
       function gridToStandardX(coord) {
@@ -113,7 +180,7 @@
 
       // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
 
-      console.error(`ship [${x}, ${y}]`);
+      console.error(`lander [${x}, ${y}]`);
       let grid = [];
 
       if (firstPass) {
@@ -251,8 +318,11 @@
               }
           }
 
-          //TODO: Need to move the move up a little to give myself some leeway.
           //TODO: Need to draw a line from the ship to the landing pad.
+          // start at the ship points, find the smalles number, search each point afterwards
+          // them in all six directions and take the smallest number
+          //TODO: Need to smooth the line (cubic Hermite spline?)
+          //TODO: Maybe do corners based on turn radius of lander.
           //TODO: Need to follow the line algorithmically.
           //TODO: How do I guarantee that the hv, vv, rot, etc.. are in bounds? Maybe I do
           // need more of a simulation for it. Or is there some way to reverse it so that I 
@@ -260,7 +330,7 @@
           // For example, to slow vertical speed, I need to use the thrusters to go up. But
           // they don't need to be pointed straight down. I COULD just make the very end
           // fairly straight. However, this isn't a great solution. I think I should get the
-          // initial part working first.
+          // initial part working first. Look ahead maybe.
 
           //TODO: Is there a better way to do this than finding shortest distance?
           //TODO: Maybe I just use the shortest path on the first time I go through it. Then every second after that
@@ -277,10 +347,6 @@
       // rotate power. rotate is the desired rotation angle. power is the desired thrust power.
       // PROBLEM OUTPUT
       console.log('-90 3');
-
-      // your data
-      const X = [0, 1000, 1500, 3000, 4000, 5500, 6999];
-      const Y = [100, 500, 1500, 1000, 150, 150, 800];
 
       // --- data domain ---
       const XMIN = 0, XMAX = 6999;
@@ -299,7 +365,8 @@
       const sy = y => c.height - ((y - YMIN) / (YMAX - YMIN) * c.height); // flip Y so 0 is bottom
 
       // --- precompute pixel points for the polyline ---
-      const pts = X.map((x, i) => ({ x: sx(x), y: sy(Y[i]) }));
+      const pts = landOrigX.map((x, i) => ({ x: sx(x), y: sy(landOrigY[i]) }));
+      const adjustPts = landX.map((x, i) => ({ x: sx(x), y: sy(landY[i]) }));
 
       // --- draw the polyline + points (your existing simple graph) ---
       function drawGraph() {
@@ -322,6 +389,47 @@
           ctx.fill();
         });
       }
+
+      function drawAdjustGraph() {
+
+        // line
+        ctx.beginPath();
+        adjustPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.strokeStyle = "#FFA500";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // points
+        ctx.fillStyle = "#FF4136";
+        adjustPts.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // function drawAdjustGraph() {
+      //   // line
+      //   ctx.beginPath();
+      //   // adjustPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      //   for (let i = 0; i < adjustPts.length; i+=2) {
+      //       ctx.moveTo(adjustPts[i].x, adjustPts[i].y)
+      //       ctx.lineTo(adjustPts[i+1].x, adjustPts[i+1].y);
+      //       // ctx.moveTo(adjustPts[i].x, adjustPts[i].y)
+      //       // ctx.lineTo(adjustPts[i].x, adjustPts[i].y);
+      //   }
+      //   ctx.strokeStyle = "#FFA500";
+      //   ctx.lineWidth = 2;
+      //   ctx.stroke();
+      //
+      //   // points
+      //   ctx.fillStyle = "#FF4136";
+      //   adjustPts.forEach(p => {
+      //     ctx.beginPath();
+      //     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      //     ctx.fill();
+      //   });
+      // }
 
       // --- label content for each cell ---
       // Return a string to draw at the cell center.
@@ -395,6 +503,7 @@
 
       // --- render ---
       drawGraph(); // draw your plot first
+      drawAdjustGraph();
       drawGrid();  // then draw the grid + labels over top
 
       ctx.beginPath();
