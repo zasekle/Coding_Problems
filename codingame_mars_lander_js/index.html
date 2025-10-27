@@ -318,6 +318,52 @@
               }
           }
 
+          let smallest = -1;
+          let pathX = -1;
+          let pathY = -1;
+
+          //find the shorest path around the lander
+          for (const [startX, startY] of gridStartingPoints) {
+              if (smallest === -1 || grid[startY][startX] < smallest) {
+                  pathX = startX;
+                  pathY = startY;
+                  smallest = grid[startY][startX];
+              }
+          }
+
+          const path = [[pathX, pathY]];
+          const pathFound = false;
+
+          //TODO: Something is wrong with the starting point. It isn't correct. It also
+          // goes up and out of bounds instead of in the correct direction.
+          //TODO: might work better if grid has wether it is a landing point stored inside it.
+          // while(!pathFound) {
+          for (let i = 0; i < 3; i++) {
+              //gridLandingPoints
+              const [curX, curY] = path[path.length-1];
+              smallest = -1;
+              for (const [dy, dx, _] of DIRS) {
+                  const newX = curX + dx;
+                  const newY = curY + dy;
+                  if (isInGridBounds(newY, newX) && grid[newY][newX] !== -1
+                      && (smallest === -1 || grid[newY][newX] < smallest)
+                  ) {
+                      pathX = newX;
+                      pathY = newY;
+                  }
+              }
+              path.push([pathX, pathY]);
+              
+              for(const [landY, landX] in gridLandingPoints) {
+                  if (landX === pathX && landY === pathY) {
+                      pathFound = true;
+                      break;
+                  }
+              }
+          }
+          
+          console.error(path);
+
           //TODO: Need to draw a line from the ship to the landing pad.
           // start at the ship points, find the smalles number, search each point afterwards
           // them in all six directions and take the smallest number
