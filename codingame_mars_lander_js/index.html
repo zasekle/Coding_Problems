@@ -332,14 +332,14 @@
           }
 
           const path = [[pathX, pathY]];
-          const pathFound = false;
+          let pathFound = false;
+
+          console.error(gridLandingPoints);
 
           //TODO: Something is wrong with the starting point. It also
           // goes up and out of bounds instead of in the correct direction.
           //TODO: might work better if grid has wether it is a landing point stored inside it.
-          // while(!pathFound) {
-          for (let i = 0; i < 3; i++) {
-              //gridLandingPoints
+          while(!pathFound) {
               const [curX, curY] = path[path.length-1];
               smallest = -1;
               for (const [dy, dx, _] of DIRS) {
@@ -350,11 +350,12 @@
                   ) {
                       pathX = newX;
                       pathY = newY;
+                      smallest = grid[newY][newX];
                   }
               }
               path.push([pathX, pathY]);
               
-              for(const [landY, landX] in gridLandingPoints) {
+              for(const [landY, landX] of gridLandingPoints) {
                   if (landX === pathX && landY === pathY) {
                       pathFound = true;
                       break;
