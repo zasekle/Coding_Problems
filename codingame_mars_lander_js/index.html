@@ -25,7 +25,7 @@
           }
       };
 
-      const squareSize = 500;
+      const squareSize = 200;
       const leewayDist = 150;
       const landX = [];
       const landY = [];
@@ -181,7 +181,8 @@
       // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
 
       console.error(`lander [${x}, ${y}]`);
-      let grid = [];
+      const grid = [];
+      const path = [];
 
       if (firstPass) {
           const numRows = 3000/squareSize + 1;
@@ -209,7 +210,7 @@
           for(let i = 0; i < numRows; i++) {
               let row = [];
               for (let j = 0; j < numCols; j++) {
-                  row.push(-1);
+                row.push({stop: false, dist: -1});
               }
               grid.push(row);
           }
@@ -231,7 +232,8 @@
           const convertSecondGridFlatX = gridToStandardX(secondGridFlatX);
 
           for(let gridFlatX = firstGridFlatX; gridFlatX <= secondGridFlatX; gridFlatX++) {
-            grid[gridFlatY][gridFlatX] = distanceToSquare;
+            grid[gridFlatY][gridFlatX].dist = distanceToSquare;
+            grid[gridFlatY][gridFlatX].stop = true;
             gridLandingPoints.push([gridFlatY, gridFlatX]);
           }
 
@@ -255,7 +257,7 @@
           const nextPoints = [...gridLandingPoints];
           while (headIdx < nextPoints.length) {
               const [gridY, gridX] = nextPoints[headIdx];
-              const gridDist = grid[gridY][gridX];
+              const gridDist = grid[gridY][gridX].dist;
               const workingY = gridToStandardY(gridY);
               const workingX = gridToStandardX(gridX);
               for (const [dy, dx, dist] of DIRS) {
@@ -281,9 +283,9 @@
                       }
 
                       const calculatedNextDist = gridDist + dist;
-                      const actualNextDist = grid[newGridY][newGridX]; 
+                      const actualNextDist = grid[newGridY][newGridX].dist; 
                       if (!outOfBounds && (actualNextDist === -1 || calculatedNextDist < actualNextDist)) {
-                          grid[newGridY][newGridX] = calculatedNextDist;
+                          grid[newGridY][newGridX].dist = calculatedNextDist;
                           nextPoints.push([newGridY, newGridX]);
                       }
                   }
@@ -312,8 +314,8 @@
 
                   // If this point could not be reached by the above algo, there is no
                   // path to reach the landing pad.
-                  if (grid[gridY][gridX] !== -1) {
-                      grid[gridY][gridX] += distance(x, y, landerX, landerY);
+                  if (grid[gridY][gridX].dist !== -1) {
+                      grid[gridY][gridX].dist += distance(x, y, landerX, landerY);
                   }
               }
           }
@@ -324,50 +326,65 @@
 
           //find the shorest path around the lander
           for (const [startX, startY] of gridStartingPoints) {
-              if (smallest === -1 || grid[startY][startX] < smallest) {
+              if (smallest === -1 || grid[startY][startX].dist < smallest) {
                   pathX = startX;
                   pathY = startY;
-                  smallest = grid[startY][startX];
+                  smallest = grid[startY][startX].dist;
               }
           }
+          
+          // Add the lander location to the path.
+          path.push([x, y]);
 
-          const path = [[pathX, pathY]];
-          let pathFound = false;
+          // Add the first location to the path.
+          path.push([pathX, pathY]);
 
-          console.error(gridLandingPoints);
+          console.error(pathX, pathY);
 
-          //TODO: Something is wrong with the starting point. It also
-          // goes up and out of bounds instead of in the correct direction.
-          //TODO: might work better if grid has wether it is a landing point stored inside it.
-          while(!pathFound) {
+          let iter = 0;
+          const MAX_ITERS = 1e6; // fail-safe
+
+          //TODO: all the squares around the lands are -1 for some reason at 50 square size.
+          while(true) {
               const [curX, curY] = path[path.length-1];
               smallest = -1;
               for (const [dy, dx, _] of DIRS) {
                   const newX = curX + dx;
                   const newY = curY + dy;
-                  if (isInGridBounds(newY, newX) && grid[newY][newX] !== -1
-                      && (smallest === -1 || grid[newY][newX] < smallest)
+                  if (iter === 0) {
+                    console.error(newX, newY);
+                    if (isInGridBounds(newY, newX)) {
+                      console.error(grid[newY][newX].dist);
+                    }
+                  }
+
+                  if (isInGridBounds(newY, newX) && grid[newY][newX].dist !== -1
+                      && (smallest === -1 || grid[newY][newX].dist < smallest)
                   ) {
                       pathX = newX;
                       pathY = newY;
-                      smallest = grid[newY][newX];
+                      smallest = grid[newY][newX].dist;
                   }
               }
               path.push([pathX, pathY]);
-              
-              for(const [landY, landX] of gridLandingPoints) {
-                  if (landX === pathX && landY === pathY) {
-                      pathFound = true;
-                      break;
-                  }
-              }
-          }
-          
-          console.error(path);
 
-          //TODO: Need to draw a line from the ship to the landing pad.
-          // start at the ship points, find the smalles number, search each point afterwards
-          // them in all six directions and take the smallest number
+              if(grid[pathY][pathX].stop) {
+                    break;
+              }
+
+              if (++iter > MAX_ITERS) throw new Error(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
+            }
+
+          // Convert path coords from grid coords.
+          for (let i = 0; i < path.length; i++) {
+             if(i === 0) continue;
+             path[i][0] = gridToStandardX(path[i][0]);
+             path[i][1] = gridToStandardY(path[i][1]);
+          }
+
+          // Get the last point that is at the safe spot to land.
+          path.push([path[path.length - 1][0], landY[firstFlatIdx]]);
+          
           //TODO: Need to smooth the line (cubic Hermite spline?)
           //TODO: Maybe do corners based on turn radius of lander.
           //TODO: Need to follow the line algorithmically.
@@ -414,6 +431,7 @@
       // --- precompute pixel points for the polyline ---
       const pts = landOrigX.map((x, i) => ({ x: sx(x), y: sy(landOrigY[i]) }));
       const adjustPts = landX.map((x, i) => ({ x: sx(x), y: sy(landY[i]) }));
+      const pathPts = path.map((pt) => ({ x: sx(pt[0]), y: sy(pt[1]) }));
 
       // --- draw the polyline + points (your existing simple graph) ---
       function drawGraph() {
@@ -455,28 +473,23 @@
         });
       }
 
-      // function drawAdjustGraph() {
-      //   // line
-      //   ctx.beginPath();
-      //   // adjustPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      //   for (let i = 0; i < adjustPts.length; i+=2) {
-      //       ctx.moveTo(adjustPts[i].x, adjustPts[i].y)
-      //       ctx.lineTo(adjustPts[i+1].x, adjustPts[i+1].y);
-      //       // ctx.moveTo(adjustPts[i].x, adjustPts[i].y)
-      //       // ctx.lineTo(adjustPts[i].x, adjustPts[i].y);
-      //   }
-      //   ctx.strokeStyle = "#FFA500";
-      //   ctx.lineWidth = 2;
-      //   ctx.stroke();
-      //
-      //   // points
-      //   ctx.fillStyle = "#FF4136";
-      //   adjustPts.forEach(p => {
-      //     ctx.beginPath();
-      //     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-      //     ctx.fill();
-      //   });
-      // }
+      function drawPath() {
+
+        // line
+        ctx.beginPath();
+        pathPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.strokeStyle = "#964b00";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // points
+        ctx.fillStyle = "#FF4136";
+        pathPts.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
 
       // --- label content for each cell ---
       // Return a string to draw at the cell center.
@@ -543,7 +556,7 @@
             const yp = sy(yc);
 
             const text = cellLabel(col, row, x0, y0, x1, y1, cols, rows);
-            ctx.fillText(String(grid[row][col].toFixed(0)), xp, yp);
+            ctx.fillText(String(grid[row][col].dist.toFixed(0)), xp, yp);
           }
         }
       }
@@ -551,6 +564,7 @@
       // --- render ---
       drawGraph(); // draw your plot first
       drawAdjustGraph();
+      drawPath();
       drawGrid();  // then draw the grid + labels over top
 
       ctx.beginPath();
