@@ -2,7 +2,7 @@
 <html>
   <body>
     <!-- fixed-size canvas so we don't worry about resizing -->
-    <canvas id="plot" width="800" height="400" style="border:1px solid #ccc"></canvas>
+    <canvas id="plot" width="3000" height="1500" style="border:1px solid #ccc"></canvas>
 
     <script>
       //:LiveServerStart
@@ -25,7 +25,7 @@
           }
       };
 
-      const squareSize = 200;
+      const squareSize = 50;
       const leewayDist = 150;
       const landX = [];
       const landY = [];
@@ -230,7 +230,7 @@
           const secondFlatX = landX[secondFlatIdx];
           const secondGridFlatX = standardToGridFloor(secondFlatX);
           const convertSecondGridFlatX = gridToStandardX(secondGridFlatX);
-
+          
           for(let gridFlatX = firstGridFlatX; gridFlatX <= secondGridFlatX; gridFlatX++) {
             grid[gridFlatY][gridFlatX].dist = distanceToSquare;
             grid[gridFlatY][gridFlatX].stop = true;
@@ -258,8 +258,16 @@
           while (headIdx < nextPoints.length) {
               const [gridY, gridX] = nextPoints[headIdx];
               const gridDist = grid[gridY][gridX].dist;
-              const workingY = gridToStandardY(gridY);
+              let workingY = gridToStandardY(gridY);
               const workingX = gridToStandardX(gridX);
+              // This handles an exceptional case where the grid line falls on the landing pad.
+              // If that happens, the grid will always "intercept" with the landing pad and so
+              // no distance will be generated.
+              if(distanceToSquare === 0 && gridDist === 0) {
+                  // Note that this must be +1 and not -1 because the landing pad could be on
+                  // the bottom of the screen (y === 0).
+                  workingY += 1;
+              }
               for (const [dy, dx, dist] of DIRS) {
                   const newGridY = gridY + dy;
                   const newGridX = gridX + dx;
@@ -268,9 +276,12 @@
                       const newY = gridToStandardY(newGridY);
                       const newX = gridToStandardX(newGridX);
 
+                      // So what is happening here is that when I am zero distance from the line,
+                      // I intersect the ground itself when I try to go anywhere. I could try to
+                      // make an exception. However, this causes problems of its own in that when
+                      // do I exclude the intersection and when do I NOT exclude it?
                       let outOfBounds = false;
                       for (let i = 1; i < surfaceN; i++) {
-
                           if (segmentsIntersect(
                                   {x: workingX, y: workingY},
                                   {x: newX, y: newY},
@@ -339,24 +350,16 @@
           // Add the first location to the path.
           path.push([pathX, pathY]);
 
-          console.error(pathX, pathY);
 
           let iter = 0;
           const MAX_ITERS = 1e6; // fail-safe
 
-          //TODO: all the squares around the lands are -1 for some reason at 50 square size.
           while(true) {
               const [curX, curY] = path[path.length-1];
               smallest = -1;
               for (const [dy, dx, _] of DIRS) {
                   const newX = curX + dx;
                   const newY = curY + dy;
-                  if (iter === 0) {
-                    console.error(newX, newY);
-                    if (isInGridBounds(newY, newX)) {
-                      console.error(grid[newY][newX].dist);
-                    }
-                  }
 
                   if (isInGridBounds(newY, newX) && grid[newY][newX].dist !== -1
                       && (smallest === -1 || grid[newY][newX].dist < smallest)
