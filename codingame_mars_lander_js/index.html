@@ -25,7 +25,7 @@
           }
       };
 
-      const squareSize = 50;
+      const squareSize = 500;
       const leewayDist = 150;
       const landX = [];
       const landY = [];
@@ -154,6 +154,39 @@
           return false;
       }
 
+      function removeStraightPoints(path, eps = 1e-9) {
+          if (!path || path.length <=2) return path ? path.slice() : [];
+
+          const newPath = [path[0]];
+          let a = path[0];
+          let b = path[1];
+          
+          for (let i = 2; i < path.length; i++) {
+              const c = path[i];
+              
+              const abx = b[0] - a[0];
+              const aby = b[1] - a[1];
+              const acx = c[0] - a[0];
+              const acy = c[1] - a[1];
+              
+              // 2D cross product z-component: ab x ac
+              const cross = abx * acy - aby * acx;
+              
+              if (Math.abs(cross) > eps) {
+                  // direction changed
+                  newPath.push(b);
+                  a = b;
+                  b = c;
+              } else {
+                  // still collinear
+                  b = c;
+              }
+          }
+          
+          newPath.push(path[path.length-1]);
+          return newPath;
+      }
+
       const x = 2500;
       const y = 2700;
       const hSpeed = 0;
@@ -178,11 +211,9 @@
 
       const distance = (x1, y1, x2, y2) => Math.hypot((x1 - x2), (y1 - y2));
 
-      // TODO: Probably need to move all land except the landing pad "up". Probably do this above by modifying the coords.
-
       console.error(`lander [${x}, ${y}]`);
       const grid = [];
-      const path = [];
+      let path = [];
 
       if (firstPass) {
           const numRows = 3000/squareSize + 1;
@@ -260,6 +291,7 @@
               const gridDist = grid[gridY][gridX].dist;
               let workingY = gridToStandardY(gridY);
               const workingX = gridToStandardX(gridX);
+
               // This handles an exceptional case where the grid line falls on the landing pad.
               // If that happens, the grid will always "intercept" with the landing pad and so
               // no distance will be generated.
@@ -350,7 +382,6 @@
           // Add the first location to the path.
           path.push([pathX, pathY]);
 
-
           let iter = 0;
           const MAX_ITERS = 1e6; // fail-safe
 
@@ -378,15 +409,19 @@
               if (++iter > MAX_ITERS) throw new Error(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
             }
 
-          // Convert path coords from grid coords.
-          for (let i = 0; i < path.length; i++) {
-             if(i === 0) continue;
+          // Convert path coords from grid coords. Idx 0 is already converted.
+          for (let i = 1; i < path.length; i++) {
              path[i][0] = gridToStandardX(path[i][0]);
              path[i][1] = gridToStandardY(path[i][1]);
           }
 
           // Get the last point that is at the safe spot to land.
           path.push([path[path.length - 1][0], landY[firstFlatIdx]]);
+
+          path = removeStraightPoints(path);
+
+
+
           
           //TODO: Need to smooth the line (cubic Hermite spline?)
           //TODO: Maybe do corners based on turn radius of lander.
