@@ -27,6 +27,7 @@
 
       const squareSize = 500;
       const leewayDist = 150;
+      const lookAheadDist = 1000;
       const landX = [];
       const landY = [];
 
@@ -446,9 +447,7 @@
           firstPass = false;
       }
 
-      // TODO: need to find the shortest distance to the line.
-      // x & y
-      // distancePointToLineSeg(l1, l2, p)
+      // Find the shortest distance to the path.
       let shortestStartIdx = 0;
       let shortestDistance = -1;
       for (let i = 1; i < path.length; i++) {
@@ -462,7 +461,47 @@
         }
       }
 
-      console.error(shortestStartIdx, shortestDistance);
+      // Find the look ahead point on the path.
+      let curPathIdx = 1;
+      let distRemaining = lookAheadDist;
+      let nearEnd = false;
+      const lookAheadPoint = {x: 0, y: 0};
+      while(true) {
+          const [x0, y0] = path[curPathIdx - 1];
+          const [x1, y1] = path[curPathIdx];
+          const segDist = distance(x0, y0, x1, y1);
+
+          if (segDist === 0) {
+              if (curPathIdx === path.length - 1) {
+                  lookAheadPoint.x = x1;
+                  lookAheadPoint.y = y1;
+                  nearEnd = true;
+                  break;
+              }
+              curPathIdx++;
+              continue;
+          }
+
+          if (distRemaining > segDist) {
+              if (curPathIdx === path.length - 1) {
+                  lookAheadPoint.x = x1;
+                  lookAheadPoint.y = y1;
+                  nearEnd = true;
+                  break;
+              }
+              distRemaining -= segDist;
+              curPathIdx++;
+              continue;
+          }
+
+          const t = distRemaining / segDist;
+          lookAheadPoint.x = x0 + t * (x1 - x0);
+          lookAheadPoint.y = y0 + t * (y1 - y0);
+          break;
+      }
+
+      console.error(path);
+      console.error(lookAheadPoint);
 
       // rotate power. rotate is the desired rotation angle. power is the desired thrust power.
       // PROBLEM OUTPUT
@@ -623,15 +662,28 @@
       drawPath();
       drawGrid();  // then draw the grid + labels over top
 
+      // lander point
       ctx.beginPath();
       ctx.arc(sx(x), sy(y), 6, 0, Math.PI * 2);
       ctx.fillStyle = "green";
       ctx.fill();
 
-      // point label
+      // lander point label
       ctx.fillStyle = "black";
       ctx.font = "12px sans-serif";
       ctx.fillText("Ship", sx(x) + 10, sy(y) - 10);
+
+      // look ahead point 
+      ctx.beginPath();
+      ctx.arc(sx(lookAheadPoint.x), sy(lookAheadPoint.y), 6, 0, Math.PI * 2);
+      ctx.fillStyle = "red";
+      ctx.fill();
+
+      // look ahead point label
+      ctx.fillStyle = "black";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("Look Ahead", sx(lookAheadPoint.x) + 10, sy(lookAheadPoint.y) - 10);
+
     </script>
   </body>
 </html>
