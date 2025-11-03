@@ -503,6 +503,36 @@
       console.error(path);
       console.error(lookAheadPoint);
 
+      // (p, v) -> (pref, vref)
+      // ep = pref - p
+      // ev = vref - v
+      // acmd = Kp * ep + Kd * ev
+
+      // TODO: Can use a modest look ahead proportional to speed 
+      // so at higher speeds I look further ahead and don’t snake.
+      // Might also want to bring the velocity lower as I get close
+      // to the ground.
+      // Desired velocity at look ahead point (m/s).
+      const vrefX = 40;
+      const vrefY = 40;
+      // How fast I want errors to die out.
+      const naturalFrequency = 0.2;
+      // How "snappy" vs "overshooty".
+      const dampingRatio = 0.8;
+
+      const proportionalGain = naturalFrequency * naturalFrequency;
+      const derivativeGain = 2 * naturalFrequency * dampingRatio;
+
+
+      const posErrX = x - lookAheadPoint.x;
+      const posErrY = y - lookAheadPoint.y;
+      const velErrX = hSpeed - vrefX;
+      const velErrY = vSpeed - vrefY;
+
+      const accCmdX = proportionalGain * posErrX + derivativeGain * velErrX;
+      const accCmdY = proportionalGain * posErrY + derivativeGain * velErrY;
+
+
       // rotate power. rotate is the desired rotation angle. power is the desired thrust power.
       // PROBLEM OUTPUT
       console.log('-90 3');
