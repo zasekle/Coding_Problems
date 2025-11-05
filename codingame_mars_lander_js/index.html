@@ -466,15 +466,20 @@
       let distRemaining = lookAheadDist;
       let nearEnd = false;
       const lookAheadPoint = {x: 0, y: 0};
+      const unitTangent = {x: 0, y: 0};
       while(true) {
           const [x0, y0] = path[curPathIdx - 1];
           const [x1, y1] = path[curPathIdx];
-          const segDist = distance(x0, y0, x1, y1);
+          const dx = x1 - x0;
+          const dy = y1 - y0;
+          const segDist = Math.hypot(dx, dy);
 
           if (segDist === 0) {
               if (curPathIdx === path.length - 1) {
                   lookAheadPoint.x = x1;
                   lookAheadPoint.y = y1;
+                  unitTangent.x = dx / segDist;
+                  unitTangent.y = dy / segDist;
                   nearEnd = true;
                   break;
               }
@@ -486,6 +491,8 @@
               if (curPathIdx === path.length - 1) {
                   lookAheadPoint.x = x1;
                   lookAheadPoint.y = y1;
+                  unitTangent.x = dx / segDist;
+                  unitTangent.y = dy / segDist;
                   nearEnd = true;
                   break;
               }
@@ -495,6 +502,8 @@
           }
 
           const t = distRemaining / segDist;
+          unitTangent.x = dx / segDist;
+          unitTangent.y = dy / segDist;
           lookAheadPoint.x = x0 + t * (x1 - x0);
           lookAheadPoint.y = y0 + t * (y1 - y0);
           break;
@@ -513,36 +522,46 @@
       // Might also want to bring the velocity lower as I get close
       // to the ground.
       // Desired velocity at look ahead point (m/s).
-      const vrefX = 40;
-      const vrefY = 40;
+      const vref = 40;
+
+      const vrefX = vref * unitTangent.x;
+      const vrefY = vref * unitTangent.y;
+
       // How fast I want errors to die out.
-      const naturalFrequency = 0.2;
+      const naturalFrequency = 1; 
       // How "snappy" vs "overshooty".
       const dampingRatio = 0.8;
 
       const proportionalGain = naturalFrequency * naturalFrequency;
       const derivativeGain = 2 * naturalFrequency * dampingRatio;
 
-      const posErrX = x - lookAheadPoint.x;
-      const posErrY = y - lookAheadPoint.y;
-      const velErrX = hSpeed - vrefX;
-      const velErrY = vSpeed - vrefY;
+      const posErrX = lookAheadPoint.x - x;
+      const posErrY = lookAheadPoint.y - y;
+      const velErrX = vrefX - hSpeed;
+      const velErrY = vrefY - vSpeed;
 
       const accCmdX = proportionalGain * posErrX + derivativeGain * velErrX;
       const accCmdY = proportionalGain * posErrY + derivativeGain * velErrY;
 
       // F = aCmd - g
-      // g = 3.711 m/s^2
+      // g = -3.711 m/s^2
+      // force = a - g
       const forceX = accCmdX;
-      const forceY = accCmdY - 3.711;
+      const forceY = accCmdY + 3.711;
 
       const magnitude = Math.hypot(forceY, forceX);
       const direction = Math.atan2(forceY, forceX);
       
-      // Something feels off here. Not sure what. Probably figure out what I WANT it to be.
+      // Rotation goes from 90->-90 in increments of 15. Counterclockwise is positive. Clockwise
+      // is negative.
+      // Thrust goes from 0->4 in incremements of 1.
+      // For the first move, I need to go right and down. So I need to rotate -90 degrees or 
+      // something for the x and not at all for the y.
       console.error(magnitude, direction);
 
       // const maxThrust = 4;
+      // const maxRotation = 90;
+      // const minRotation = -90;
 
 
       // rotate power. rotate is the desired rotation angle. power is the desired thrust power.
