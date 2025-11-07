@@ -3,6 +3,9 @@
   <body>
     <!-- fixed-size canvas so we don't worry about resizing -->
     <canvas id="plot" width="3000" height="1500" style="border:1px solid #ccc"></canvas>
+    <button id="playPauseBtn">Play</button>
+    <input id="frameSlider" type="range" min="0" value="0" style = "width: 400px;">
+    <span id="frameLabel"></span>
 
     <script>
       //:LiveServerStart
@@ -32,6 +35,10 @@
       const leewayDist = 200;
       const vref = 40;
       const lookAheadDist = 200;
+
+      const numberFrames = 100;
+      let curFrameIndex = 0;
+      const frames = [];
 
       const landX = [];
       const landY = [];
@@ -215,13 +222,13 @@
           }
       }
 
-      const x = 2500;
-      const y = 2700;
-      const hSpeed = 0;
-      const vSpeed = 0;
-      const fuel = 550;
-      const rotate = 0;
-      const power = 0;
+      let x = 2500;
+      let y = 2700;
+      let hSpeed = 0;
+      let vSpeed = 0;
+      let fuel = 550;
+      let rotate = 0;
+      let power = 0;
 
       // Write an action using console.log()
       // To debug: console.error('Debug messages...');
@@ -241,341 +248,416 @@
       const grid = [];
       let path = [];
 
-      if (firstPass) {
-          const numRows = 3000/squareSize + 1;
-          const numCols = 7000/squareSize + 1; 
+      while(curFrameIndex < numberFrames) {
+          console.error(`Pass ${curFrameIndex + 1}`);
 
-          const isInGridBounds = (y, x) => y >= 0 && y < numRows && x >= 0 && x < numCols;
+          frames.push({x: x, y: y, lookAheadPoint: {x: -1, y: -1}});
+          console.error(frames[curFrameIndex]);
 
-          // How does this work?
-          // Start at the current coords. Every direction works, but I want the shortest path. So 
-          // some kind of backtracking algo I suppose? Maybe start at the points on the grid that 
-          // are "solutions" and then use backwards induction to find the shortest path.
+          if (firstPass) {
+              const numRows = 3000/squareSize + 1;
+              const numCols = 7000/squareSize + 1; 
 
-          // Multiple possible end points. Pick one and start there.
+              const isInGridBounds = (y, x) => y >= 0 && y < numRows && x >= 0 && x < numCols;
 
-          // Check each direction and keep track of length. Find shortest direction once I find
-          // the lander.
+              // How does this work?
+              // Start at the current coords. Every direction works, but I want the shortest path. So 
+              // some kind of backtracking algo I suppose? Maybe start at the points on the grid that 
+              // are "solutions" and then use backwards induction to find the shortest path.
 
-          // Need coords of the current lander and the coords of the end points. Maybe I will need
-          // to do some extra at the start and end to go to a corner. So from startX and startY to
-          // the nearest coord and such. Oh, I can just add the distance to the nearest coordinates.
+              // Multiple possible end points. Pick one and start there.
 
-          // The actual coordinate that represents each square is the bottom left.
-          // This allows it to be floor(X) and floor(Y) which makes computation 
-          // simpler.
-          for(let i = 0; i < numRows; i++) {
-              let row = [];
-              for (let j = 0; j < numCols; j++) {
-                row.push({stop: false, dist: -1});
+              // Check each direction and keep track of length. Find shortest direction once I find
+              // the lander.
+
+              // Need coords of the current lander and the coords of the end points. Maybe I will need
+              // to do some extra at the start and end to go to a corner. So from startX and startY to
+              // the nearest coord and such. Oh, I can just add the distance to the nearest coordinates.
+
+              // The actual coordinate that represents each square is the bottom left.
+              // This allows it to be floor(X) and floor(Y) which makes computation 
+              // simpler.
+              for(let i = 0; i < numRows; i++) {
+                  let row = [];
+                  for (let j = 0; j < numCols; j++) {
+                    row.push({stop: false, dist: -1});
+                  }
+                  grid.push(row);
               }
-              grid.push(row);
-          }
 
-          // Mark coords directly above the ground coords.
-          const gridLandingPoints = [];
+              // Mark coords directly above the ground coords.
+              const gridLandingPoints = [];
 
-          const flatY = landY[firstFlatIdx];
-          const gridFlatY = standardToGridCeil(flatY);
-          const convertFlatY = gridToStandardY(gridFlatY);
+              const flatY = landY[firstFlatIdx];
+              const gridFlatY = standardToGridCeil(flatY);
+              const convertFlatY = gridToStandardY(gridFlatY);
 
-          const distanceToSquare = distance(0, flatY, 0, convertFlatY);
+              const distanceToSquare = distance(0, flatY, 0, convertFlatY);
 
-          const firstFlatX = landX[firstFlatIdx];
-          const firstGridFlatX = standardToGridCeil(firstFlatX);
+              const firstFlatX = landX[firstFlatIdx];
+              const firstGridFlatX = standardToGridCeil(firstFlatX);
 
-          const secondFlatX = landX[secondFlatIdx];
-          const secondGridFlatX = standardToGridFloor(secondFlatX);
-          const convertSecondGridFlatX = gridToStandardX(secondGridFlatX);
-          
-          for(let gridFlatX = firstGridFlatX; gridFlatX <= secondGridFlatX; gridFlatX++) {
-            grid[gridFlatY][gridFlatX].dist = distanceToSquare;
-            grid[gridFlatY][gridFlatX].stop = true;
-            gridLandingPoints.push([gridFlatY, gridFlatX]);
-          }
-
-          const orthogDistance = distance(0, 0, squareSize, 0);
-          const diagonalDistance = distance(0, 0, squareSize, squareSize);
-          const DIRS = [
-              [-1, -1, diagonalDistance],
-              [-1, 0, orthogDistance],
-              [-1, 1, diagonalDistance],
-              [0, -1, orthogDistance],
-              [0, 1, orthogDistance],
-              [1, -1, diagonalDistance],
-              [1, 0, orthogDistance],
-              [1, -1, diagonalDistance]
-          ];
-
-          // Calculate and save the shortest distance from each grid point to the end point. It will
-          // not calculate any point that fall outside the grid and will not move through any land.
-
-          let headIdx = 0;
-          const nextPoints = [...gridLandingPoints];
-          while (headIdx < nextPoints.length) {
-              const [gridY, gridX] = nextPoints[headIdx];
-              const gridDist = grid[gridY][gridX].dist;
-              let workingY = gridToStandardY(gridY);
-              const workingX = gridToStandardX(gridX);
-
-              // This handles an exceptional case where the grid line falls on the landing pad.
-              // If that happens, the grid will always "intercept" with the landing pad and so
-              // no distance will be generated.
-              if(distanceToSquare === 0 && gridDist === 0) {
-                  // Note that this must be +1 and not -1 because the landing pad could be on
-                  // the bottom of the screen (y === 0).
-                  workingY += 1;
+              const secondFlatX = landX[secondFlatIdx];
+              const secondGridFlatX = standardToGridFloor(secondFlatX);
+              const convertSecondGridFlatX = gridToStandardX(secondGridFlatX);
+              
+              for(let gridFlatX = firstGridFlatX; gridFlatX <= secondGridFlatX; gridFlatX++) {
+                grid[gridFlatY][gridFlatX].dist = distanceToSquare;
+                grid[gridFlatY][gridFlatX].stop = true;
+                gridLandingPoints.push([gridFlatY, gridFlatX]);
               }
-              for (const [dy, dx, dist] of DIRS) {
-                  const newGridY = gridY + dy;
-                  const newGridX = gridX + dx;
 
-                  if (isInGridBounds(newGridY, newGridX)) {
-                      const newY = gridToStandardY(newGridY);
-                      const newX = gridToStandardX(newGridX);
+              const orthogDistance = distance(0, 0, squareSize, 0);
+              const diagonalDistance = distance(0, 0, squareSize, squareSize);
+              const DIRS = [
+                  [-1, -1, diagonalDistance],
+                  [-1, 0, orthogDistance],
+                  [-1, 1, diagonalDistance],
+                  [0, -1, orthogDistance],
+                  [0, 1, orthogDistance],
+                  [1, -1, diagonalDistance],
+                  [1, 0, orthogDistance],
+                  [1, -1, diagonalDistance]
+              ];
 
-                      // So what is happening here is that when I am zero distance from the line,
-                      // I intersect the ground itself when I try to go anywhere. I could try to
-                      // make an exception. However, this causes problems of its own in that when
-                      // do I exclude the intersection and when do I NOT exclude it?
-                      let outOfBounds = false;
-                      for (let i = 1; i < surfaceN; i++) {
-                          if (segmentsIntersect(
-                                  {x: workingX, y: workingY},
-                                  {x: newX, y: newY},
-                                  {x: landX[i-1], y: landY[i-1]},
-                                  {x: landX[i], y: landY[i]}
-                          )) {
-                              outOfBounds = true;
-                              break;
+              // Calculate and save the shortest distance from each grid point to the end point. It will
+              // not calculate any point that fall outside the grid and will not move through any land.
+
+              let headIdx = 0;
+              const nextPoints = [...gridLandingPoints];
+              while (headIdx < nextPoints.length) {
+                  const [gridY, gridX] = nextPoints[headIdx];
+                  const gridDist = grid[gridY][gridX].dist;
+                  let workingY = gridToStandardY(gridY);
+                  const workingX = gridToStandardX(gridX);
+
+                  // This handles an exceptional case where the grid line falls on the landing pad.
+                  // If that happens, the grid will always "intercept" with the landing pad and so
+                  // no distance will be generated.
+                  if(distanceToSquare === 0 && gridDist === 0) {
+                      // Note that this must be +1 and not -1 because the landing pad could be on
+                      // the bottom of the screen (y === 0).
+                      workingY += 1;
+                  }
+                  for (const [dy, dx, dist] of DIRS) {
+                      const newGridY = gridY + dy;
+                      const newGridX = gridX + dx;
+
+                      if (isInGridBounds(newGridY, newGridX)) {
+                          const newY = gridToStandardY(newGridY);
+                          const newX = gridToStandardX(newGridX);
+
+                          // So what is happening here is that when I am zero distance from the line,
+                          // I intersect the ground itself when I try to go anywhere. I could try to
+                          // make an exception. However, this causes problems of its own in that when
+                          // do I exclude the intersection and when do I NOT exclude it?
+                          let outOfBounds = false;
+                          for (let i = 1; i < surfaceN; i++) {
+                              if (segmentsIntersect(
+                                      {x: workingX, y: workingY},
+                                      {x: newX, y: newY},
+                                      {x: landX[i-1], y: landY[i-1]},
+                                      {x: landX[i], y: landY[i]}
+                              )) {
+                                  outOfBounds = true;
+                                  break;
+                              }
+                          }
+
+                          const calculatedNextDist = gridDist + dist;
+                          const actualNextDist = grid[newGridY][newGridX].dist; 
+                          if (!outOfBounds && (actualNextDist === -1 || calculatedNextDist < actualNextDist)) {
+                              grid[newGridY][newGridX].dist = calculatedNextDist;
+                              nextPoints.push([newGridY, newGridX]);
                           }
                       }
+                  }
+                  headIdx++;
+              }
 
-                      const calculatedNextDist = gridDist + dist;
-                      const actualNextDist = grid[newGridY][newGridX].dist; 
-                      if (!outOfBounds && (actualNextDist === -1 || calculatedNextDist < actualNextDist)) {
-                          grid[newGridY][newGridX].dist = calculatedNextDist;
-                          nextPoints.push([newGridY, newGridX]);
+              const gridStartingPoints = [];
+
+              // These points can be duplicates, so doing it this way to avoid
+              // the same point being used multiple times.
+              const gridLanderXCoords = new Set();
+              const gridLanderYCoords = new Set();
+              gridLanderXCoords.add(standardToGridFloor(x));
+              gridLanderXCoords.add(standardToGridCeil(x));
+              gridLanderYCoords.add(standardToGridFloor(y));
+              gridLanderYCoords.add(standardToGridCeil(y));
+
+              for (const gridX of gridLanderXCoords) {
+                  for (const gridY of gridLanderYCoords) {
+                      // Convert grid coords back to actual coords.
+                      const landerX = gridToStandardX(gridX);
+                      const landerY = gridToStandardY(gridY);
+
+                      gridStartingPoints.push([gridY, gridX]);
+
+                      // If this point could not be reached by the above algo, there is no
+                      // path to reach the landing pad.
+                      if (grid[gridY][gridX].dist !== -1) {
+                          grid[gridY][gridX].dist += distance(x, y, landerX, landerY);
                       }
                   }
               }
-              headIdx++;
-          }
 
-          const gridStartingPoints = [];
+              let smallest = -1;
+              let pathX = -1;
+              let pathY = -1;
 
-          // These points can be duplicates, so doing it this way to avoid
-          // the same point being used multiple times.
-          const gridLanderXCoords = new Set();
-          const gridLanderYCoords = new Set();
-          gridLanderXCoords.add(standardToGridFloor(x));
-          gridLanderXCoords.add(standardToGridCeil(x));
-          gridLanderYCoords.add(standardToGridFloor(y));
-          gridLanderYCoords.add(standardToGridCeil(y));
-
-          for (const gridX of gridLanderXCoords) {
-              for (const gridY of gridLanderYCoords) {
-                  // Convert grid coords back to actual coords.
-                  const landerX = gridToStandardX(gridX);
-                  const landerY = gridToStandardY(gridY);
-
-                  gridStartingPoints.push([gridY, gridX]);
-
-                  // If this point could not be reached by the above algo, there is no
-                  // path to reach the landing pad.
-                  if (grid[gridY][gridX].dist !== -1) {
-                      grid[gridY][gridX].dist += distance(x, y, landerX, landerY);
+              //find the shorest path around the lander
+              for (const [startX, startY] of gridStartingPoints) {
+                  if (smallest === -1 || grid[startY][startX].dist < smallest) {
+                      pathX = startX;
+                      pathY = startY;
+                      smallest = grid[startY][startX].dist;
                   }
               }
-          }
+              
+              // Add the lander location to the path.
+              path.push([x, y]);
 
-          let smallest = -1;
-          let pathX = -1;
-          let pathY = -1;
-
-          //find the shorest path around the lander
-          for (const [startX, startY] of gridStartingPoints) {
-              if (smallest === -1 || grid[startY][startX].dist < smallest) {
-                  pathX = startX;
-                  pathY = startY;
-                  smallest = grid[startY][startX].dist;
-              }
-          }
-          
-          // Add the lander location to the path.
-          path.push([x, y]);
-
-          // Add the first location to the path.
-          path.push([pathX, pathY]);
-
-          let iter = 0;
-          const MAX_ITERS = 1e6; // fail-safe
-
-          while(true) {
-              const [curX, curY] = path[path.length-1];
-              smallest = -1;
-              for (const [dy, dx, _] of DIRS) {
-                  const newX = curX + dx;
-                  const newY = curY + dy;
-
-                  if (isInGridBounds(newY, newX) && grid[newY][newX].dist !== -1
-                      && (smallest === -1 || grid[newY][newX].dist < smallest)
-                  ) {
-                      pathX = newX;
-                      pathY = newY;
-                      smallest = grid[newY][newX].dist;
-                  }
-              }
+              // Add the first location to the path.
               path.push([pathX, pathY]);
 
-              if(grid[pathY][pathX].stop) {
-                    break;
+              let iter = 0;
+              const MAX_ITERS = 1e6; // fail-safe
+
+              while(true) {
+                  const [curX, curY] = path[path.length-1];
+                  smallest = -1;
+                  for (const [dy, dx, _] of DIRS) {
+                      const newX = curX + dx;
+                      const newY = curY + dy;
+
+                      if (isInGridBounds(newY, newX) && grid[newY][newX].dist !== -1
+                          && (smallest === -1 || grid[newY][newX].dist < smallest)
+                      ) {
+                          pathX = newX;
+                          pathY = newY;
+                          smallest = grid[newY][newX].dist;
+                      }
+                  }
+                  path.push([pathX, pathY]);
+
+                  if(grid[pathY][pathX].stop) {
+                        break;
+                  }
+
+                  if (++iter > MAX_ITERS) throw new Error(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
+                }
+
+              // Convert path coords from grid coords. Idx 0 is already converted.
+              for (let i = 1; i < path.length; i++) {
+                 path[i][0] = gridToStandardX(path[i][0]);
+                 path[i][1] = gridToStandardY(path[i][1]);
               }
 
-              if (++iter > MAX_ITERS) throw new Error(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
-            }
+              // Get the last point that is at the safe spot to land.
+              path.push([path[path.length - 1][0], landY[firstFlatIdx]]);
 
-          // Convert path coords from grid coords. Idx 0 is already converted.
-          for (let i = 1; i < path.length; i++) {
-             path[i][0] = gridToStandardX(path[i][0]);
-             path[i][1] = gridToStandardY(path[i][1]);
+              path = removeStraightPoints(path);
+
+              // TODO: Need to smooth the line (cubic Hermite spline?)
+              // TODO: Maybe do corners based on turn radius of lander.
+
+              firstPass = false;
           }
 
-          // Get the last point that is at the safe spot to land.
-          path.push([path[path.length - 1][0], landY[firstFlatIdx]]);
+          // Find the shortest distance to the path.
+          let shortestPathPoint = {
+              segIdx: 0,
+              t: 0,
+              x: path[0][0],
+              y: path[0][1],
+              dist: Infinity
+          };
+          for (let i = 1; i < path.length; i++) {
+            const pointOne = {x: path[i - 1][0], y: path[i - 1][1]};
+            const pointTwo = {x: path[i][0], y: path[i][1]};
 
-          path = removeStraightPoints(path);
+            const out = distancePointToLineSeg(pointOne, pointTwo, {x: x, y: y});
+            if (out.dist < shortestPathPoint.dist) {
+              shortestPathPoint = {segIdx: i - 1, t: out.t, x: out.x, y: out.y, dist: out.dist };
+              console.error(shortestPathPoint);
+            }
+          }
 
-          // TODO: Need to smooth the line (cubic Hermite spline?)
-          // TODO: Maybe do corners based on turn radius of lander.
+          // Find the look ahead point on the path.
+          let curPathIdx = shortestPathPoint.segIdx;
+          let distRemaining = lookAheadDist;
+          let nearEnd = false;
+          const lookAheadPoint = {x: 0, y: 0};
+          const unitTangent = {x: 0, y: 0};
+          while(true) {
+              const [x0, y0] = path[curPathIdx];
+              const [x1, y1] = path[curPathIdx + 1];
+              const dx = x1 - x0;
+              const dy = y1 - y0;
+              const segDist = Math.hypot(dx, dy);
 
-          firstPass = false;
-      }
+              if (segDist === 0) {
+                  if (curPathIdx === path.length - 1) {
+                      lookAheadPoint.x = x1;
+                      lookAheadPoint.y = y1;
+                      unitTangent.x = dx / segDist;
+                      unitTangent.y = dy / segDist;
+                      nearEnd = true;
+                      break;
+                  }
+                  curPathIdx++;
+                  continue;
+              }
 
-      // Find the shortest distance to the path.
-      let shortestPathPoint = {
-          segIdx: 0,
-          t: 0,
-          x: path[0][0],
-          y: path[0][1],
-          dist: Infinity
-      };
-      for (let i = 1; i < path.length; i++) {
-        const pointOne = {x: path[i - 1][0], y: path[i - 1][1]};
-        const pointTwo = {x: path[i][0], y: path[i][1]};
+              if (distRemaining > segDist) {
+                  if (curPathIdx === path.length - 1) {
+                      lookAheadPoint.x = x1;
+                      lookAheadPoint.y = y1;
+                      unitTangent.x = dx / segDist;
+                      unitTangent.y = dy / segDist;
+                      nearEnd = true;
+                      break;
+                  }
+                  distRemaining -= segDist;
+                  curPathIdx++;
+                  continue;
+              }
 
-        const out = distancePointToLineSeg(pointOne, pointTwo, {x: x, y: y});
-        if (out.dist < shortestPathPoint.dist) {
-          shortestPathPoint = {segIdx: i - 1, t: out.t, x: out.x, y: out.y, dist: out.dist };
-          console.error(shortestPathPoint);
-        }
-      }
+              const tStart = (curPathIdx === shortestPathPoint.segIdx) ? shortestPathPoint.t : 0;
+              const distOnSeg = segDist * (1 - tStart);
 
-      // Find the look ahead point on the path.
-      let curPathIdx = shortestPathPoint.segIdx + 1;
-      let distRemaining = lookAheadDist;
-      let nearEnd = false;
-      const lookAheadPoint = {x: 0, y: 0};
-      const unitTangent = {x: 0, y: 0};
-      while(true) {
-          const [x0, y0] = path[curPathIdx - 1];
-          const [x1, y1] = path[curPathIdx];
-          const dx = x1 - x0;
-          const dy = y1 - y0;
-          const segDist = Math.hypot(dx, dy);
-
-          if (segDist === 0 || distRemaining > segDist) {
-              if (curPathIdx === path.length - 1) {
-                  lookAheadPoint.x = x1;
-                  lookAheadPoint.y = y1;
+              if (distRemaining <= distOnSeg || curPathIdx === path.length - 2) {
+                  const t = distRemaining / segDist;
                   unitTangent.x = dx / segDist;
                   unitTangent.y = dy / segDist;
-                  nearEnd = true;
+                  lookAheadPoint.x = x0 + t * (x1 - x0);
+                  lookAheadPoint.y = y0 + t * (y1 - y0);
                   break;
               }
-              distRemaining -= segDist;
+
+              distRemaining -= distOnSeg;
               curPathIdx++;
-              continue;
           }
 
-          const t = distRemaining / segDist;
-          unitTangent.x = dx / segDist;
-          unitTangent.y = dy / segDist;
-          lookAheadPoint.x = x0 + t * (x1 - x0);
-          lookAheadPoint.y = y0 + t * (y1 - y0);
-          break;
+          frames[curFrameIndex].lookAheadPoint.x = lookAheadPoint.x;
+          frames[curFrameIndex].lookAheadPoint.y = lookAheadPoint.y;
+
+          console.error(path);
+          console.error(lookAheadPoint);
+
+          // (p, v) -> (pref, vref)
+          // ep = pref - p
+          // ev = vref - v
+          // acmd = Kp * ep + Kd * ev
+
+          // TODO: Can use a modest look ahead proportional to speed 
+          // so at higher speeds I look further ahead and don’t snake.
+          // Might also want to bring the velocity lower as I get close
+          // to the ground.
+          // Desired velocity at look ahead point (m/s).
+
+          const vrefX = vref * unitTangent.x;
+          const vrefY = vref * unitTangent.y;
+
+          // How fast I want errors to die out.
+          const naturalFrequency = 0.2; 
+          // How "snappy" vs "overshooty".
+          const dampingRatio = 0.8;
+
+          const proportionalGain = naturalFrequency * naturalFrequency;
+          const derivativeGain = 2 * naturalFrequency * dampingRatio;
+
+          const posErrX = lookAheadPoint.x - x;
+          const posErrY = lookAheadPoint.y - y;
+          const velErrX = vrefX - hSpeed;
+          const velErrY = vrefY - vSpeed;
+
+          const accCmdX = proportionalGain * posErrX + derivativeGain * velErrX;
+          const accCmdY = proportionalGain * posErrY + derivativeGain * velErrY;
+
+          // F = aCmd - g
+          // g = -3.711 m/s^2
+          let forceX = accCmdX;
+          let forceY = accCmdY + 3.711;
+
+          // In m/s.
+          let magnitude = Math.hypot(forceY, forceX);
+          // In radians.
+          let direction = Math.atan2(forceY, forceX);
+
+          const maxThrust = 4;
+          const maxRotation = 90;
+          const minRotation = -90;
+
+          if (magnitude > maxThrust) {
+              const scale = maxThrust / magnitude;
+              forceX *= scale;
+              forceY *= scale;
+              magnitude = maxThrust;
+              direction = Math.atan2(forceY, forceX);
+          }
+
+          magnitude = Math.round(magnitude);
+
+          // Can only go +/- 1 per tick
+          magnitude = Math.min(power + 1, Math.max(power - 1, magnitude));
+
+          // Convert direction to degrees and y axis rotation.
+          direction = (direction * (180/Math.PI)) - 90;
+
+          // Clamp direction between max and min values.
+          direction = Math.min(maxRotation, Math.max(direction, minRotation));
+
+          direction = Math.round(direction);
+
+          // Can only go +/- 15 degrees per tick.
+          direction = Math.min(rotate + 15, Math.max(direction, rotate - 15));
+
+          // Rotation goes from 90->-90 in increments of 15. Counterclockwise is
+          // positive. Clockwise is negative.
+          // Thrust goes from 0->4 in incremements of 1.
+          // For the first move, I need to go right and down. So I need to rotate
+          // -90 degrees or something for the x and not at all for the y.
+          console.error(magnitude, direction);
+
+          // PROBLEM OUTPUT
+          console.log(direction, magnitude);
+          
+          rotate = direction;
+          power = magnitude;
+
+          const prevX = x;
+          const prevY = y;
+          const prevHSpeed = hSpeed;
+          const prevVSpeed = vSpeed;
+
+          fuel -= Math.max(magnitude - 1, 0);
+
+          const dirRad = direction * Math.PI / 180;
+
+          // direction at 0 degrees is pointing straight up so cos and sin
+          // end up swapped.
+          const finalThrust = {
+              x: magnitude * -Math.sin(dirRad),
+              y: magnitude * Math.cos(dirRad)
+          };
+
+          // Standard physics coords (y-axis points upward), mars gravity.
+          const finalAcc = {
+              x: finalThrust.x,
+              y: finalThrust.y - 3.711
+          }; 
+
+          // t = 1 second
+          hSpeed = prevHSpeed + finalAcc.x;
+          vSpeed = prevVSpeed + finalAcc.y;
+          x = prevX + prevHSpeed + 0.5 * finalAcc.x;
+          y = prevY + prevVSpeed + 0.5 * finalAcc.y;
+          console.error(x, y);
+
+          curFrameIndex++;
       }
-
-      console.error(path);
-      console.error(lookAheadPoint);
-
-      // (p, v) -> (pref, vref)
-      // ep = pref - p
-      // ev = vref - v
-      // acmd = Kp * ep + Kd * ev
-
-      // TODO: Can use a modest look ahead proportional to speed 
-      // so at higher speeds I look further ahead and don’t snake.
-      // Might also want to bring the velocity lower as I get close
-      // to the ground.
-      // Desired velocity at look ahead point (m/s).
-
-      const vrefX = vref * unitTangent.x;
-      const vrefY = vref * unitTangent.y;
-
-      // How fast I want errors to die out.
-      const naturalFrequency = 0.2; 
-      // How "snappy" vs "overshooty".
-      const dampingRatio = 0.8;
-
-      const proportionalGain = naturalFrequency * naturalFrequency;
-      const derivativeGain = 2 * naturalFrequency * dampingRatio;
-
-      const posErrX = lookAheadPoint.x - x;
-      const posErrY = lookAheadPoint.y - y;
-      const velErrX = vrefX - hSpeed;
-      const velErrY = vrefY - vSpeed;
-
-      const accCmdX = proportionalGain * posErrX + derivativeGain * velErrX;
-      const accCmdY = proportionalGain * posErrY + derivativeGain * velErrY;
-
-      // F = aCmd - g
-      // g = -3.711 m/s^2
-      const forceX = accCmdX;
-      const forceY = accCmdY + 3.711;
-
-      // In m/s.
-      let magnitude = Math.hypot(forceY, forceX);
-      // In radians.
-      let direction = Math.atan2(forceY, forceX);
-
-      const maxThrust = 4;
-      const maxRotation = 90;
-      const minRotation = -90;
-
-      if (magnitude > maxThrust) {
-        const scale = maxThrust / magnitude;
-        magnitude = Math.round(Math.hypot(forceY * scale, forceX * scale));
-      }
-      
-      // Convert direction to degrees and y axis rotation.
-      direction = (direction * (180/Math.PI)) - 90;
-
-      // Clamp direction between max and min values.
-      direction = Math.min(maxRotation, Math.max(direction, minRotation));
-
-      // Snap to the nearest 15 degrees.
-      direction = Math.round(direction / 15) * 15;
-
-      // Rotation goes from 90->-90 in increments of 15. Counterclockwise is
-      // positive. Clockwise is negative.
-      // Thrust goes from 0->4 in incremements of 1.
-      // For the first move, I need to go right and down. So I need to rotate
-      // -90 degrees or something for the x and not at all for the y.
-      console.error(magnitude, direction);
-
-      // PROBLEM OUTPUT
-      console.log(direction, magnitude);
 
       // --- data domain ---
       const XMIN = 0, XMAX = 6999;
@@ -592,11 +674,11 @@
       // --- scale functions: data -> pixels ---
       const sx = x => (x - XMIN) / (XMAX - XMIN) * c.width;
       const sy = y => c.height - ((y - YMIN) / (YMAX - YMIN) * c.height); // flip Y so 0 is bottom
-
+      
       // --- precompute pixel points for the polyline ---
-      const pts = landOrigX.map((x, i) => ({ x: sx(x), y: sy(landOrigY[i]) }));
-      const adjustPts = landX.map((x, i) => ({ x: sx(x), y: sy(landY[i]) }));
-      const pathPts = path.map((pt) => ({ x: sx(pt[0]), y: sy(pt[1]) }));
+      let pts = landOrigX.map((x, i) => ({ x: sx(x), y: sy(landOrigY[i]) }));
+      let adjustPts = landX.map((x, i) => ({ x: sx(x), y: sy(landY[i]) }));
+      let pathPts = path.map((pt) => ({ x: sx(pt[0]), y: sy(pt[1]) }));
 
       // --- draw the polyline + points (your existing simple graph) ---
       function drawGraph() {
@@ -726,33 +808,108 @@
         }
       }
 
-      // --- render ---
-      drawGraph(); // draw your plot first
-      drawAdjustGraph();
-      drawPath();
-      drawGrid();  // then draw the grid + labels over top
+      function drawShipAndLookAhead(x, y, lookAheadPoint) {
+          // lander point
+          ctx.beginPath();
+          ctx.arc(sx(x), sy(y), 6, 0, Math.PI * 2);
+          ctx.fillStyle = "green";
+          ctx.fill();
 
-      // lander point
-      ctx.beginPath();
-      ctx.arc(sx(x), sy(y), 6, 0, Math.PI * 2);
-      ctx.fillStyle = "green";
-      ctx.fill();
+          // lander point label
+          ctx.fillStyle = "black";
+          ctx.font = "12px sans-serif";
+          ctx.fillText("Ship", sx(x) + 10, sy(y) - 10);
 
-      // lander point label
-      ctx.fillStyle = "black";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("Ship", sx(x) + 10, sy(y) - 10);
+          // look ahead point 
+          ctx.beginPath();
+          ctx.arc(sx(lookAheadPoint.x), sy(lookAheadPoint.y), 6, 0, Math.PI * 2);
+          ctx.fillStyle = "red";
+          ctx.fill();
 
-      // look ahead point 
-      ctx.beginPath();
-      ctx.arc(sx(lookAheadPoint.x), sy(lookAheadPoint.y), 6, 0, Math.PI * 2);
-      ctx.fillStyle = "red";
-      ctx.fill();
+          // look ahead point label
+          ctx.fillStyle = "black";
+          ctx.font = "12px sans-serif";
+          ctx.fillText("Look Ahead", sx(lookAheadPoint.x) + 10, sy(lookAheadPoint.y) - 10);
+      }
 
-      // look ahead point label
-      ctx.fillStyle = "black";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("Look Ahead", sx(lookAheadPoint.x) + 10, sy(lookAheadPoint.y) - 10);
+      function drawFrame(frameIndex) {
+          const frame = frames[frameIndex];
+          if (!frame) return;
+ 
+          // clear / background
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, c.width, c.height);
+
+          // --- render ---
+          drawGraph(); // draw your plot first
+          drawAdjustGraph();
+          drawPath();
+          drawGrid();  // then draw the grid + labels over top
+
+          // current ship + look-ahead
+          drawShipAndLookAhead(frame.x, frame.y, frame.lookAheadPoint);
+      }
+
+      const playPauseBtn = document.getElementById('playPauseBtn');
+      const frameSlider = document.getElementById('frameSlider');
+      const frameLabel = document.getElementById('frameLabel');
+
+      // TODO: This is the number of iterations it will go through.
+      frameSlider.max = numberFrames - 1;      
+
+      let currentFrame = 0;
+      let playing = false;
+      let timerId = null;
+      const FRAME_MS = 100; // 100 ms between frame = 10 fps
+
+      function goToFrame(index) {
+        currentFrame = Math.max(0, Math.min(index, numberFrames));
+        frameSlider.valud = currentFrame;
+        frameLabel.textContent = `Frame: ${currentFrame}`;
+        drawFrame(currentFrame);
+      }
+
+      function startPlayback() {
+        if (playing) return;
+        playing = true;
+        playPauseBtn.textContent = "Pause";
+
+        timerId = setInterval(() => {
+          if (currentFrame >= frames.length - 1) {
+            // stop at the end (or loop: currentFrame = 0)
+            stopPlayback();
+            return;
+          }
+          goToFrame(currentFrame + 1);
+        }, FRAME_MS);
+      }
+
+      function stopPlayback() {
+        playing = false;
+        playPauseBtn.textContent = "Play";
+        if (timerId !== null) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+      }
+
+      // Button: toggle play/pause
+      playPauseBtn.addEventListener('click', () => {
+        if (playing) {
+          stopPlayback();
+        } else {
+          startPlayback();
+        }
+      });
+
+      // Slider: scrub to a specific frame (feeze / jump)
+      frameSlider.addEventListener('input', (e) => {
+        const idx = Number(e.target.value);
+        stopPlayback(); // scrubbing implicitly "freezes"
+        goToFrame(idx);
+      });
+
+      goToFrame(0);
 
     </script>
   </body>
