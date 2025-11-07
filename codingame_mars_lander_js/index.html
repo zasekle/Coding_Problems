@@ -250,8 +250,17 @@
 
       while(curFrameIndex < numberFrames) {
           console.error(`Pass ${curFrameIndex + 1}`);
+          console.error(`power ${power}`);
 
-          frames.push({x: x, y: y, lookAheadPoint: {x: -1, y: -1}});
+          frames.push({
+              x: x,
+              y: y,
+              magnitude: power,
+              rotation: rotate,
+              hSpeed: hSpeed,
+              vSpeed: vSpeed,
+              lookAheadPoint: {x: -1, y: -1}
+          });
           console.error(frames[curFrameIndex]);
 
           if (firstPass) {
@@ -490,52 +499,39 @@
           let nearEnd = false;
           const lookAheadPoint = {x: 0, y: 0};
           const unitTangent = {x: 0, y: 0};
-          while(true) {
+
+          while(curPathIdx < path.length - 1) {
               const [x0, y0] = path[curPathIdx];
               const [x1, y1] = path[curPathIdx + 1];
               const dx = x1 - x0;
               const dy = y1 - y0;
               const segDist = Math.hypot(dx, dy);
 
-              if (segDist === 0) {
-                  if (curPathIdx === path.length - 1) {
-                      lookAheadPoint.x = x1;
-                      lookAheadPoint.y = y1;
-                      unitTangent.x = dx / segDist;
-                      unitTangent.y = dy / segDist;
-                      nearEnd = true;
-                      break;
-                  }
+              if (segDist ===0) {
+                  // skip degenerate segments
                   curPathIdx++;
-                  continue;
-              }
-
-              if (distRemaining > segDist) {
-                  if (curPathIdx === path.length - 1) {
-                      lookAheadPoint.x = x1;
-                      lookAheadPoint.y = y1;
-                      unitTangent.x = dx / segDist;
-                      unitTangent.y = dy / segDist;
-                      nearEnd = true;
-                      break;
-                  }
-                  distRemaining -= segDist;
-                  curPathIdx++;
-                  continue;
+                  continue
               }
 
               const tStart = (curPathIdx === shortestPathPoint.segIdx) ? shortestPathPoint.t : 0;
               const distOnSeg = segDist * (1 - tStart);
 
               if (distRemaining <= distOnSeg || curPathIdx === path.length - 2) {
-                  const t = distRemaining / segDist;
+                  // Look-ahead point is on this segment
+                  const t = tStart + (distRemaining / segDist);
+                  const tClamped = Math.min(t, 1);
+
                   unitTangent.x = dx / segDist;
                   unitTangent.y = dy / segDist;
-                  lookAheadPoint.x = x0 + t * (x1 - x0);
-                  lookAheadPoint.y = y0 + t * (y1 - y0);
+
+                  lookAheadPoint.x = x0 + tClamped * dx;
+                  lookAheadPoint.y = y0 + tClamped * dy;
+
+                  nearEnd = (tClamped >= 1 && curPathIdx === path.length - 1);
                   break;
               }
 
+              // Not enough; consume this segment and move on.
               distRemaining -= distOnSeg;
               curPathIdx++;
           }
@@ -808,6 +804,27 @@
         }
       }
 
+      function drawHUD(frameIndex, thrust, rotation, hSpeed, vSpeed) {
+          ctx.save(); // save current styles
+
+          ctx.fillStyle = "black";
+          ctx.font = "30px monospace";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+
+          const x = 20;      // 10px from left
+          let y = 20;        // 10px from top
+          const line = 28;   // line height in pixels
+
+          ctx.fillText(`Frame: ${frameIndex}`, x, y); y += line;
+          ctx.fillText(`Thrust: ${thrust.toFixed(2)}`, x, y); y += line;
+          ctx.fillText(`Rotation: ${rotation.toFixed(1)}°`, x, y); y += line;
+          ctx.fillText(`hSpeed: ${hSpeed.toFixed(1)}°`, x, y); y += line;
+          ctx.fillText(`vSpeed: ${vSpeed.toFixed(1)}°`, x, y);
+
+          ctx.restore(); // restore old styles
+      }
+
       function drawShipAndLookAhead(x, y, lookAheadPoint) {
           // lander point
           ctx.beginPath();
@@ -817,8 +834,8 @@
 
           // lander point label
           ctx.fillStyle = "black";
-          ctx.font = "12px sans-serif";
-          ctx.fillText("Ship", sx(x) + 10, sy(y) - 10);
+          ctx.font = "18px sans-serif";
+          ctx.fillText(`Ship (${x.toFixed(1)}, ${y.toFixed(1)})`, sx(x) + 10, sy(y) - 10);
 
           // look ahead point 
           ctx.beginPath();
@@ -847,6 +864,7 @@
           drawGrid();  // then draw the grid + labels over top
 
           // current ship + look-ahead
+          drawHUD(frameIndex, frame.magnitude, frame.rotation, frame.hSpeed, frame.vSpeed);
           drawShipAndLookAhead(frame.x, frame.y, frame.lookAheadPoint);
       }
 
