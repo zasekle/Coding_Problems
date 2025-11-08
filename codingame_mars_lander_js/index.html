@@ -21,7 +21,7 @@
       let firstFlatIdx = 0;
       let secondFlatIdx = 0;
       for (let i = 1; i < surfaceN; i++) {
-          if (landOrigY[i] === landOrigY[i - 1]) {
+          if (landOrigY[i] === landOrigY[i - 1] && Math.abs(landOrigX[i]-landOrigX[i-1]) >= 1000) {
               firstFlatIdx = i - 1;
               secondFlatIdx = i;
               break;
@@ -31,12 +31,14 @@
       // Look ahead and leeway are related, don't want the lander trying to fly
       // through a wall because it is looking too far ahead. However, the lander
       // needs to slow down fast enough too.
+      // TODO: The generated terrain is bugged, need new coords for it. The landing pad cannot
+      // get too small.
       const squareSize = 500;
       const leewayDist = 200;
-      const vref = 40;
-      const lookAheadDist = 200;
+      const vref = 20;
+      const lookAheadDist = 60;
 
-      const numberFrames = 100;
+      const numberFrames = 1000;
       let curFrameIndex = 0;
       const frames = [];
 
@@ -454,7 +456,10 @@
                         break;
                   }
 
-                  if (++iter > MAX_ITERS) throw new Error(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
+                  if (++iter > MAX_ITERS) {
+                      console.log(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
+                      break;
+                  } 
                 }
 
               // Convert path coords from grid coords. Idx 0 is already converted.
@@ -561,8 +566,12 @@
           // How "snappy" vs "overshooty".
           const dampingRatio = 0.8;
 
-          const proportionalGain = naturalFrequency * naturalFrequency;
-          const derivativeGain = 2 * naturalFrequency * dampingRatio;
+          // const proportionalGain = naturalFrequency * naturalFrequency;
+          // const derivativeGain = 2 * naturalFrequency * dampingRatio;
+          const proportionalGain = 0.015;
+          const derivativeGain = 0.075;
+
+          console.error(proportionalGain, derivativeGain);
 
           const posErrX = lookAheadPoint.x - x;
           const posErrY = lookAheadPoint.y - y;
@@ -819,8 +828,8 @@
           ctx.fillText(`Frame: ${frameIndex}`, x, y); y += line;
           ctx.fillText(`Thrust: ${thrust.toFixed(2)}`, x, y); y += line;
           ctx.fillText(`Rotation: ${rotation.toFixed(1)}°`, x, y); y += line;
-          ctx.fillText(`hSpeed: ${hSpeed.toFixed(1)}°`, x, y); y += line;
-          ctx.fillText(`vSpeed: ${vSpeed.toFixed(1)}°`, x, y);
+          ctx.fillText(`hSpeed: ${hSpeed.toFixed(1)}`, x, y); y += line;
+          ctx.fillText(`vSpeed: ${vSpeed.toFixed(1)}`, x, y);
 
           ctx.restore(); // restore old styles
       }
