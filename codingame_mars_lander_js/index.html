@@ -502,6 +502,7 @@
           let curPathIdx = shortestPathPoint.segIdx;
           let distRemaining = lookAheadDist;
           let nearEnd = false;
+          let corner = false;
           const lookAheadPoint = {x: 0, y: 0};
           const unitTangent = {x: 0, y: 0};
 
@@ -537,6 +538,7 @@
               }
 
               // Not enough; consume this segment and move on.
+              corner = true;
               distRemaining -= distOnSeg;
               curPathIdx++;
           }
@@ -557,9 +559,19 @@
           // Might also want to bring the velocity lower as I get close
           // to the ground.
           // Desired velocity at look ahead point (m/s).
+          
+          let curVref = vref;
 
-          const vrefX = vref * unitTangent.x;
-          const vrefY = vref * unitTangent.y;
+          if (nearEnd === true) {
+              console.log("nearEnd");
+              curVref = 2;
+          } else if (corner === true) {
+              console.log("corner");
+              curVref /= 2;
+          }
+
+          const vrefX = curVref * unitTangent.x;
+          const vrefY = curVref * unitTangent.y;
 
           // How fast I want errors to die out.
           const naturalFrequency = 0.2; 
@@ -590,6 +602,10 @@
           let magnitude = Math.hypot(forceY, forceX);
           // In radians.
           let direction = Math.atan2(forceY, forceX);
+
+          if (nearEnd === true) {
+              direction = 0;
+          }
 
           const maxThrust = 4;
           const maxRotation = 90;
