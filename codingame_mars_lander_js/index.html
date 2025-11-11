@@ -33,8 +33,9 @@
       // needs to slow down fast enough too.
       // TODO: The generated terrain is bugged, need new coords for it. The landing pad cannot
       // get too small.
-      const squareSize = 500;
+      const squareSize = 50;
       const leewayDist = 200;
+      const finalStraightSeg = 400;
       const vref = 20;
       const lookAheadDist = 60;
 
@@ -69,34 +70,38 @@
           let y3 = -1;
           let y4 = -1;
 
+          const dY = landOrigY[i] - landOrigY[i-1];
+          const dX = landOrigX[i] - landOrigX[i-1];
+
+          const len = Math.hypot(dX, dY);
+
+          if (!len) continue;
+
+          let curLeewayDist = leewayDist;
           if (i === secondFlatIdx) {
-              x3 = landOrigX[i - 1];
-              x4 = landOrigX[i];
-              y3 = landOrigY[i - 1];
-              y4 = landOrigY[i];
-          } else {
-              const dY = landOrigY[i] - landOrigY[i-1];
-              const dX = landOrigX[i] - landOrigX[i-1];
-
-              const len = Math.hypot(dX, dY);
-
-              if (!len) continue;
-
-              // n = (-Δy, Δx)/sqrt((Δx)^2 + (Δy)^2)
-              // A' = A + h*n
-              // B' = B + h*n
-              const normX = leewayDist * (-dY / len);
-              const normY = leewayDist * (dX / len);
-              
-              x3 = landOrigX[i-1] + normX;
-              x4 = landOrigX[i] + normX;
-              y3 = landOrigY[i-1] + normY;
-              y4 = landOrigY[i] + normY;
+              curLeewayDist = finalStraightSeg;
           }
+
+          // n = (-Δy, Δx)/sqrt((Δx)^2 + (Δy)^2)
+          // A' = A + h*n
+          // B' = B + h*n
+          const normX = curLeewayDist * (-dY / len);
+          const normY = curLeewayDist * (dX / len);
+
+          x3 = landOrigX[i-1] + normX;
+          x4 = landOrigX[i] + normX;
+          y3 = landOrigY[i-1] + normY;
+          y4 = landOrigY[i] + normY;
 
           const [newX, newY] = intersect(x3, x4, y3, y4);
 
-          landX.push(newX);
+          if (i === secondFlatIdx) {
+              landX.push(x3 + leewayDist);
+          } else if (i === secondFlatIdx + 1) {
+              landX.push(x3 - leewayDist);
+          } else {
+              landX.push(newX);
+          }
           landY.push(newY);
 
           x1 = x3;
@@ -417,7 +422,7 @@
               let pathX = -1;
               let pathY = -1;
 
-              //find the shorest path around the lander
+              // Find the shorest path around the lander.
               for (const [startX, startY] of gridStartingPoints) {
                   if (smallest === -1 || grid[startY][startX].dist < smallest) {
                       pathX = startX;
@@ -435,6 +440,7 @@
               let iter = 0;
               const MAX_ITERS = 1e6; // fail-safe
 
+              // Build shortest path.
               while(true) {
                   const [curX, curY] = path[path.length-1];
                   smallest = -1;
@@ -460,7 +466,7 @@
                       console.log(`Path search exceeded MAX_ITERS [${pathX}, ${pathY}]`);
                       break;
                   } 
-                }
+              }
 
               // Convert path coords from grid coords. Idx 0 is already converted.
               for (let i = 1; i < path.length; i++) {
@@ -469,7 +475,7 @@
               }
 
               // Get the last point that is at the safe spot to land.
-              path.push([path[path.length - 1][0], landY[firstFlatIdx]]);
+              path.push([path[path.length - 1][0], landOrigY[firstFlatIdx]]);
 
               path = removeStraightPoints(path);
 
@@ -502,6 +508,7 @@
           let curPathIdx = shortestPathPoint.segIdx;
           let distRemaining = lookAheadDist;
           let nearEnd = false;
+          let finalSegment = false;
           let corner = false;
           const lookAheadPoint = {x: 0, y: 0};
           const unitTangent = {x: 0, y: 0};
@@ -513,7 +520,7 @@
               const dy = y1 - y0;
               const segDist = Math.hypot(dx, dy);
 
-              if (segDist ===0) {
+              if (segDist === 0) {
                   // skip degenerate segments
                   curPathIdx++;
                   continue
@@ -533,7 +540,8 @@
                   lookAheadPoint.x = x0 + tClamped * dx;
                   lookAheadPoint.y = y0 + tClamped * dy;
 
-                  nearEnd = (tClamped >= 1 && curPathIdx === path.length - 1);
+                  nearEnd = (tClamped >= 1 && curPathIdx === path.length - 2);
+                  if (curPathIdx === path.length - 2) finalSegment = true;
                   break;
               }
 
@@ -562,7 +570,10 @@
           
           let curVref = vref;
 
-          if (nearEnd === true) {
+          if (finalSegment) {
+              console.log("finalSegment");
+              curVref = 5;
+          } else if (nearEnd === true) {
               console.log("nearEnd");
               curVref = 2;
           } else if (corner === true) {
@@ -603,10 +614,6 @@
           // In radians.
           let direction = Math.atan2(forceY, forceX);
 
-          if (nearEnd === true) {
-              direction = 0;
-          }
-
           const maxThrust = 4;
           const maxRotation = 90;
           const minRotation = -90;
@@ -623,6 +630,11 @@
 
           // Can only go +/- 1 per tick
           magnitude = Math.min(power + 1, Math.max(power - 1, magnitude));
+
+          // Set rotation to 0.
+          if (nearEnd === true) {
+              direction = Math.PI/2;
+          }
 
           // Convert direction to degrees and y axis rotation.
           direction = (direction * (180/Math.PI)) - 90;
