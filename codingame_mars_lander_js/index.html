@@ -11,8 +11,13 @@
       //:LiveServerStart
 
       const surfaceN = 7;
-      const landOrigX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
-      const landOrigY = [100, 500, 1500, 1000, 150, 150, 800];
+      // Problem 1 "Easy on the right"
+      // const landOrigX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
+      // const landOrigY = [100, 500, 1500, 1000, 150, 150, 800];
+
+      // Problem 2 "Initial speed, correct side"
+      const landOrigX = [0, 1000, 1500, 3000, 3500, 3700, 5000, 5800, 6000, 6999];
+      const landOrigY = [100, 500, 100, 100, 500, 200, 1500, 300, 1000, 2000];
 
       console.error(landOrigX);
       console.error(landOrigY);
@@ -37,6 +42,9 @@
       const leewayDist = 200;
       const finalStraightSeg = 400;
       const vref = 20;
+      const vrefNearEnd = 2;
+      const vrefFinalSegment = 2;
+      const vrefCorner = 2;
       const lookAheadDist = 60;
 
       const numberFrames = 1000;
@@ -229,8 +237,14 @@
           }
       }
 
-      let x = 2500;
-      let y = 2700;
+      // Problem 1
+      // let x = 2500;
+      // let y = 2700;
+
+      // Problem 2
+      let x = 6500;
+      let y = 2800;
+
       let hSpeed = 0;
       let vSpeed = 0;
       let fuel = 550;
@@ -423,7 +437,7 @@
               let pathY = -1;
 
               // Find the shorest path around the lander.
-              for (const [startX, startY] of gridStartingPoints) {
+              for (const [startY, startX] of gridStartingPoints) {
                   if (smallest === -1 || grid[startY][startX].dist < smallest) {
                       pathX = startX;
                       pathY = startY;
@@ -572,13 +586,13 @@
 
           if (finalSegment) {
               console.log("finalSegment");
-              curVref = 5;
+              curVref = vrefFinalSegment;
           } else if (nearEnd === true) {
               console.log("nearEnd");
-              curVref = 2;
+              curVref = vrefNearEnd;
           } else if (corner === true) {
               console.log("corner");
-              curVref /= 2;
+              curVref /= vrefCorner;
           }
 
           const vrefX = curVref * unitTangent.x;
