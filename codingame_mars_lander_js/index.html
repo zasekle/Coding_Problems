@@ -10,12 +10,13 @@
     <script>
       //:LiveServerStart
 
-      const surfaceN = 7;
       // Problem 1 "Easy on the right"
+      // const surfaceN = 7;
       // const landOrigX = [0, 1000, 1500, 3000, 4000, 5500, 6999];
       // const landOrigY = [100, 500, 1500, 1000, 150, 150, 800];
 
       // Problem 2 "Initial speed, correct side"
+      const surfaceN = 10;
       const landOrigX = [0, 1000, 1500, 3000, 3500, 3700, 5000, 5800, 6000, 6999];
       const landOrigY = [100, 500, 100, 100, 500, 200, 1500, 300, 1000, 2000];
 
@@ -36,18 +37,16 @@
       // Look ahead and leeway are related, don't want the lander trying to fly
       // through a wall because it is looking too far ahead. However, the lander
       // needs to slow down fast enough too.
-      // TODO: The generated terrain is bugged, need new coords for it. The landing pad cannot
-      // get too small.
       const squareSize = 50;
       const leewayDist = 200;
-      const finalStraightSeg = 400;
-      const vref = 20;
+      const finalStraightSeg = 600;
+      const vref = 30;
       const vrefNearEnd = 2;
-      const vrefFinalSegment = 2;
+      const vrefFinalSegment = 20;
       const vrefCorner = 2;
       const lookAheadDist = 60;
 
-      const numberFrames = 1000;
+      const numberFrames = 300;
       let curFrameIndex = 0;
       const frames = [];
 
@@ -122,8 +121,6 @@
 
       landX.push(newX);
       landY.push(newY);
-
-      let firstPass = true;
 
       function gridToStandardX(coord) {
           let conversion = coord * squareSize;
@@ -240,15 +237,19 @@
       // Problem 1
       // let x = 2500;
       // let y = 2700;
+      // let hSpeed = 0;
+      // let vSpeed = 0;
+      // let fuel = 550;
+      // let rotate = 90;
+      // let power = 0;
 
       // Problem 2
       let x = 6500;
       let y = 2800;
-
-      let hSpeed = 0;
+      let hSpeed = -100;
       let vSpeed = 0;
       let fuel = 550;
-      let rotate = 0;
+      let rotate = 90;
       let power = 0;
 
       // Write an action using console.log()
@@ -268,7 +269,9 @@
       console.error(`lander [${x}, ${y}]`);
       const grid = [];
       let path = [];
-
+      let finalSegment = false;
+      let nearEnd = false;
+      
       while(curFrameIndex < numberFrames) {
           console.error(`Pass ${curFrameIndex + 1}`);
           console.error(`power ${power}`);
@@ -284,7 +287,11 @@
           });
           console.error(frames[curFrameIndex]);
 
-          if (firstPass) {
+          if (!finalSegment) {
+
+              grid.length = 0;
+              path.length = 0;
+
               const numRows = 3000/squareSize + 1;
               const numCols = 7000/squareSize + 1; 
 
@@ -493,10 +500,6 @@
 
               path = removeStraightPoints(path);
 
-              // TODO: Need to smooth the line (cubic Hermite spline?)
-              // TODO: Maybe do corners based on turn radius of lander.
-
-              firstPass = false;
           }
 
           // Find the shortest distance to the path.
@@ -521,8 +524,6 @@
           // Find the look ahead point on the path.
           let curPathIdx = shortestPathPoint.segIdx;
           let distRemaining = lookAheadDist;
-          let nearEnd = false;
-          let finalSegment = false;
           let corner = false;
           const lookAheadPoint = {x: 0, y: 0};
           const unitTangent = {x: 0, y: 0};
@@ -554,7 +555,7 @@
                   lookAheadPoint.x = x0 + tClamped * dx;
                   lookAheadPoint.y = y0 + tClamped * dy;
 
-                  nearEnd = (tClamped >= 1 && curPathIdx === path.length - 2);
+                  nearEnd = finalSegment && (distOnSeg - distRemaining) <= 1e-6;
                   if (curPathIdx === path.length - 2) finalSegment = true;
                   break;
               }
@@ -567,6 +568,12 @@
 
           frames[curFrameIndex].lookAheadPoint.x = lookAheadPoint.x;
           frames[curFrameIndex].lookAheadPoint.y = lookAheadPoint.y;
+
+          // This will make it so that when the top level ground is approached, it will
+          // not try to recalculate the ship path (it will be out of bounds on the grid).
+          if (lookAheadPoint.y <= landY[firstFlatIdx]) {
+              finalSegment = true;
+          }
 
           console.error(path);
           console.error(lookAheadPoint);
@@ -618,17 +625,59 @@
           const accCmdX = proportionalGain * posErrX + derivativeGain * velErrX;
           const accCmdY = proportionalGain * posErrY + derivativeGain * velErrY;
 
+          // Reserve enough vertical thrust to stay above a vSpeed floor.
+          const maxThrust = 4;             // max thrust accel (m/s^2)
+          const gravity   = -3.711;        // +y is up
+
+          // height above your “clearance” surface at current x
+          // (use path y, ground y, or pad y—choose one)
+          const h_clear   = 1000;                     // buffer above the surface (m) – tune
+          const y_surface = lookAheadPoint.y - h_clear; // simple: track the path minus clearance
+          const h         = y - y_surface;
+
+          // max net upward accel (what you can use to brake descent)
+          const a_up_max  = Math.max(0, maxThrust + gravity);   // ≈ 0.289
+
+          // altitude-based vertical speed target (glideslope)
+          let v_des = -Math.sqrt(Math.max(0, 2 * a_up_max * Math.max(h, 0)));
+
+          // optional clamps so you don’t descend too fast or too slow at high altitudes
+          v_des = Math.max(v_des, -60);   // never faster than -60 m/s
+          v_des = Math.min(v_des,  -2);   // don’t try to hover high up
+
+          // small PD on vertical speed to track v_des (no hard floor)
+          const Kv = 0.6;   // accel per (m/s) of speed error – tune 0.3..1.0
+          const Ky = 0.00;  // tiny position term if you want, else 0
+
+          const ay_v = Kv * (v_des - vSpeed) + Ky * (y_surface - y);
+
+          // vertical thrust needed (remember: ay = Ty + gravity)
+          let Ty = ay_v - gravity;
+
+          // also consider what your tracker wanted:
+          const Ty_des = (accCmdY) - gravity;
+          Ty = Math.max(Ty, Ty_des);    // don’t undercut the tracker
+          Ty = Math.max(0, Math.min(Ty, maxThrust));  // clamp 0..4
+
+          // --- 3) With leftover thrust, do horizontal
+          // desired horizontal thrust from tracker:
+          let Tx_des = accCmdX; // (gX = 0)
+
+          // what’s left for lateral, given we already reserved Ty:
+          const Tx_cap = Math.sqrt(Math.max(0, maxThrust*maxThrust - Ty*Ty));
+          // saturate horizontal within the remaining budget
+          let Tx = Math.max(-Tx_cap, Math.min(Tx_des, Tx_cap));
+
           // F = aCmd - g
           // g = -3.711 m/s^2
-          let forceX = accCmdX;
-          let forceY = accCmdY + 3.711;
+          let forceX = Tx;
+          let forceY = Ty;
 
           // In m/s.
           let magnitude = Math.hypot(forceY, forceX);
           // In radians.
           let direction = Math.atan2(forceY, forceX);
 
-          const maxThrust = 4;
           const maxRotation = 90;
           const minRotation = -90;
 
@@ -647,6 +696,7 @@
 
           // Set rotation to 0.
           if (nearEnd === true) {
+              console.error("NearEnd");
               direction = Math.PI/2;
           }
 
@@ -693,7 +743,7 @@
           // Standard physics coords (y-axis points upward), mars gravity.
           const finalAcc = {
               x: finalThrust.x,
-              y: finalThrust.y - 3.711
+              y: finalThrust.y + gravity
           }; 
 
           // t = 1 second
